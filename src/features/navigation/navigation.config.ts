@@ -1,4 +1,3 @@
-
 import {
   BarChart3,
   Boxes,
@@ -11,11 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-export type AppRole =
-  | 'Administrator'
-  | 'Asset Manager'
-  | 'Technician'
-  | 'Viewer/Auditor'
+export type AppRole = 'Administrator' | 'Asset Manager' | 'Technician' | 'Viewer/Auditor'
 
 export interface NavigationItem {
   label: string
@@ -89,13 +84,7 @@ export const navigationByRole: Record<AppRole, NavigationSection[]> = {
   Administrator: [
     {
       title: 'Workspace',
-      items: [
-        dashboard,
-        assetInventory,
-        assignments,
-        maintenance,
-        reports,
-      ],
+      items: [dashboard, assetInventory, assignments, maintenance, reports],
     },
     {
       title: 'Administration',
@@ -106,13 +95,7 @@ export const navigationByRole: Record<AppRole, NavigationSection[]> = {
   'Asset Manager': [
     {
       title: 'Workspace',
-      items: [
-        dashboard,
-        assetInventory,
-        assignments,
-        maintenance,
-        reports,
-      ],
+      items: [dashboard, assetInventory, assignments, maintenance, reports],
     },
   ],
 

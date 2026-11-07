@@ -1,65 +1,97 @@
 import { assetsByStatus } from '../data/dashboard.mock'
 
 const statusColors: Record<string, string> = {
-  Active: '#2563eb',
-  Maintenance: '#f59e0b',
-  'In Storage': '#64748b',
-  Retired: '#ef4444',
+  Active: '#2563EB',
+  Maintenance: '#F59E0B',
+  'In Storage': '#64748B',
+  Retired: '#EF4444',
 }
 
 export default function AssetStatusChart() {
-  const totalAssets = assetsByStatus.reduce((total, item) => total + item.count, 0)
+  const maxCount = Math.max(...assetsByStatus.map((item) => item.count), 1)
 
-  let currentAngle = 0
+  // Keep five evenly spaced Y-axis intervals.
+  const axisMax = Math.max(5, Math.ceil(maxCount / 5) * 5)
+  const ticks = Array.from({ length: 6 }, (_, index) => (axisMax * (5 - index)) / 5)
 
-  const gradientStops = assetsByStatus.map((item) => {
-    const percentage = totalAssets > 0 ? (item.count / totalAssets) * 100 : 0
-
-    const startAngle = currentAngle
-    currentAngle += percentage * 3.6
-
-    return `${statusColors[item.status]} ${startAngle}deg ${currentAngle}deg`
-  })
-
-  const chartBackground =
-    totalAssets > 0 ? `conic-gradient(${gradientStops.join(', ')})` : '#e2e8f0'
+  const chartTop = 24
+  const chartBottom = 190
+  const chartHeight = chartBottom - chartTop
+  const barWidth = 54
+  const centers = [115, 225, 335, 445]
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div>
         <h2 className="text-base font-semibold text-slate-900">Asset Status Overview</h2>
         <p className="mt-1 text-sm text-slate-500">Current lifecycle distribution</p>
       </div>
 
-      <div className="mt-6 flex flex-col items-center gap-6 sm:flex-row sm:justify-around">
-        <div
+      <div className="mt-6 w-full">
+        <svg
+          viewBox="0 0 560 245"
+          className="h-auto w-full overflow-visible"
           role="img"
-          aria-label={`Asset status distribution across ${totalAssets} assets`}
-          className="relative size-44 shrink-0 rounded-full"
-          style={{ background: chartBackground }}
+          aria-label={`Vertical bar chart showing asset lifecycle status: ${assetsByStatus.map((item) => `${item.status}: ${item.count}`).join(', ')}`}
         >
-          <div className="absolute inset-7 flex flex-col items-center justify-center rounded-full bg-white">
-            <span className="text-3xl font-bold text-slate-900">{totalAssets}</span>
-            <span className="text-xs text-slate-500">Total Assets</span>
-          </div>
-        </div>
+          {/* Y-axis labels and horizontal grid lines */}
+          {ticks.map((tick, index) => {
+            const y = chartTop + (index / 5) * chartHeight
 
-        <ul className="w-full space-y-4 sm:w-auto">
-          {assetsByStatus.map((item) => (
-            <li key={item.status} className="flex items-center justify-between gap-6">
-              <div className="flex items-center gap-2">
-                <span
-                  className="size-3 rounded-full"
-                  style={{ backgroundColor: statusColors[item.status] }}
-                  aria-hidden="true"
+            return (
+              <g key={tick}>
+                <line x1="55" y1={y} x2="535" y2={y} stroke="#E2E8F0" strokeWidth="1" />
+                <text x="43" y={y + 4} textAnchor="end" fontSize="11" fill="#64748B">
+                  {tick}
+                </text>
+              </g>
+            )
+          })}
+
+          {/* Bars, values and category labels */}
+          {assetsByStatus.map((item, index) => {
+            const center = centers[index] ?? 0
+            const barHeight = (item.count / axisMax) * chartHeight
+            const barY = chartBottom - barHeight
+
+            return (
+              <g key={item.status}>
+                <rect
+                  x={center - barWidth / 2}
+                  y={barY}
+                  width={barWidth}
+                  height={barHeight}
+                  rx="6"
+                  fill={statusColors[item.status] ?? '#94A3B8'}
                 />
-                <span className="text-sm text-slate-600">{item.status}</span>
-              </div>
 
-              <span className="text-sm font-semibold text-slate-900">{item.count}</span>
-            </li>
-          ))}
-        </ul>
+                <text
+                  x={center}
+                  y={Math.max(chartTop - 5, barY - 9)}
+                  textAnchor="middle"
+                  fontSize="13"
+                  fontWeight="600"
+                  fill="#0F172A"
+                >
+                  {item.count}
+                </text>
+
+                <text x={center} y="215" textAnchor="middle" fontSize="11" fill="#475569">
+                  {item.status}
+                </text>
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+
+      <div className="mt-4 border-t border-slate-100 pt-4">
+        <p className="text-sm text-slate-500">
+          Total registered assets:{' '}
+          <span className="font-semibold text-slate-900">
+            {assetsByStatus.reduce((total, item) => total + item.count, 0)}
+          </span>
+        </p>
       </div>
     </section>
   )

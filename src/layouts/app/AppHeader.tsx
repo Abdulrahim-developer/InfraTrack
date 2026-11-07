@@ -1,4 +1,3 @@
-
 import { useRouterState } from '@tanstack/react-router'
 import { Bell, ChevronDown, Menu, Search } from 'lucide-react'
 import ThemeToggle from '#/components/ThemeToggle'
@@ -100,9 +99,7 @@ export default function AppHeader({ role, onMenuClick }: AppHeaderProps) {
           </div>
 
           <div className="hidden xl:block">
-            <p className="text-sm font-semibold text-slate-900">
-              Abdul Rahim
-            </p>
+            <p className="text-sm font-semibold text-slate-900">Abdul Rahim</p>
             <p className="text-xs text-slate-500">{role}</p>
           </div>
 
