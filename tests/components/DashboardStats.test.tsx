@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import DashboardStats from '#/features/dashboard/components/DashboardStats'
+import DashboardStats from '#/features/dashboard/components/shared/DashboardStats'
 
 describe('DashboardStats', () => {
   it('renders all four dashboard metrics with the expected values', () => {

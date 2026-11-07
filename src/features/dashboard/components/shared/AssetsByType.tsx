@@ -1,4 +1,4 @@
-import { assetsByType } from '../data/dashboard.mock'
+import { assetsByType } from '../../data/dashboard.mock'
 
 const chartColors: Record<string, string> = {
   Router: '#2563EB',

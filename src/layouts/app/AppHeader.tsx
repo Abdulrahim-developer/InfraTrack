@@ -43,15 +43,13 @@ export default function AppHeader({ role, onMenuClick }: AppHeaderProps) {
 
         <div className="min-w-0">
           <h1 className="max-w-[145px] truncate text-base font-bold text-slate-900 sm:max-w-[220px] sm:text-lg xl:max-w-none xl:text-xl">
-            {isDashboard && role === 'Administrator'
-              ? 'Administrator Dashboard'
-              : pageTitle}
+            {isDashboard ? 'Overview' : pageTitle}
           </h1>
 
           <p className="mt-0.5 hidden text-xs text-slate-500 xl:block">
-            {isDashboard
-              ? 'Operational overview of infrastructure assets, usage, and system activity.'
-              : 'Infrastructure Asset Management'}
+           {isDashboard
+  ? 'Your infrastructure management overview.'
+  : 'Infrastructure Asset Management'}
           </p>
         </div>
       </div>

@@ -1,8 +1,8 @@
-import DashboardStats from './DashboardStats'
-import AssetsByType from './AssetsByType'
-import AssetStatusChart from './AssetStatusChart'
 import RecentActivity from './RecentActivity'
 import SystemAlerts from './SystemAlerts'
+import AssetsByType from './shared/AssetsByType'
+import AssetStatusChart from './shared/AssetStatusChart'
+import DashboardStats from './shared/DashboardStats'
 
 export default function AdminDashboard() {
   return (

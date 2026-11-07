@@ -1,4 +1,4 @@
-import { assetsByStatus } from '../data/dashboard.mock'
+import { assetsByStatus } from '../../data/dashboard.mock'
 
 const statusColors: Record<string, string> = {
   Active: '#2563EB',

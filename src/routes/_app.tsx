@@ -9,7 +9,7 @@ function AuthenticatedLayout() {
   // Temporary role for UI development.
   // Later, this will come from the authenticated session.
   return (
-    <AppLayout role="Administrator">
+   <AppLayout role="Administrator">
       <Outlet />
     </AppLayout>
   )

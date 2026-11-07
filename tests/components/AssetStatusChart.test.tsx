@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import AssetStatusChart from '#/features/dashboard/components/AssetStatusChart'
+import AssetStatusChart from '#/features/dashboard/components/shared/AssetStatusChart'
 
 describe('AssetStatusChart', () => {
   it('renders all four asset statuses', () => {
