@@ -22,10 +22,12 @@ interface MockAssignment {
 
 export interface DashboardActivity {
   id: string
-  action: string
+  action: 'Assigned' | 'Registered' | 'Maintenance' | 'Updated' | 'Returned'
   assetName: string
+  assetReferenceId: string
   details: string
   timestamp: string
+  performedBy: string
 }
 
 // Fictional asset records for dashboard development.
@@ -79,28 +81,51 @@ export const assetsByStatus = ['Active', 'Maintenance', 'In Storage', 'Retired']
   }),
 )
 
-// Illustrative events based on the asset audit-log concept.
-// Replace with actual audit-log API data later.
+// Fictional activity records for dashboard UI development.
 export const recentActivity: DashboardActivity[] = [
   {
     id: '1',
-    action: 'Asset registered',
+    action: 'Assigned',
     assetName: 'Core Router',
-    details: 'New infrastructure asset registered',
-    timestamp: '2026-11-07T09:30:00Z',
+    assetReferenceId: 'RTR-0458',
+    details: 'Asset assigned to a department',
+    timestamp: '2026-11-04T10:24:00',
+    performedBy: 'Asset Manager',
   },
   {
     id: '2',
-    action: 'Status changed',
+    action: 'Registered',
     assetName: 'Database Server',
-    details: 'Asset moved to Maintenance',
-    timestamp: '2026-11-07T08:45:00Z',
+    assetReferenceId: 'SRV-0023',
+    details: 'New infrastructure asset registered',
+    timestamp: '2026-11-04T09:57:00',
+    performedBy: 'Administrator',
   },
   {
     id: '3',
-    action: 'Asset assigned',
+    action: 'Maintenance',
     assetName: 'Network Switch 01',
-    details: 'Assignment record created',
-    timestamp: '2026-11-06T14:20:00Z',
+    assetReferenceId: 'SWT-0176',
+    details: 'Maintenance record created',
+    timestamp: '2026-11-03T16:12:00',
+    performedBy: 'Technician',
+  },
+  {
+    id: '4',
+    action: 'Updated',
+    assetName: 'Application Server',
+    assetReferenceId: 'SRV-0891',
+    details: 'Asset information updated',
+    timestamp: '2026-11-03T11:36:00',
+    performedBy: 'Asset Manager',
+  },
+  {
+    id: '5',
+    action: 'Returned',
+    assetName: 'Branch Router',
+    assetReferenceId: 'RTR-0321',
+    details: 'Asset assignment returned',
+    timestamp: '2026-11-02T17:20:00',
+    performedBy: 'Technician',
   },
 ]
