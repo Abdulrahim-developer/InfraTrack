@@ -50,7 +50,7 @@ const maintenance: NavigationItem = {
   label: 'Maintenance',
   href: '/maintenance',
   icon: Wrench,
-  available: false,
+  available: true,
 }
 
 const reports: NavigationItem = {
