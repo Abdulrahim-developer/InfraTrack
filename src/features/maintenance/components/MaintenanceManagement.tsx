@@ -1,4 +1,3 @@
-
 import { useMemo, useState, type FormEvent } from 'react'
 import {
   CalendarDays,
@@ -102,9 +101,7 @@ function getTypeStyle(type: string) {
   return 'bg-orange-50 text-orange-700'
 }
 
-export default function MaintenanceManagement({
-  role,
-}: MaintenanceManagementProps) {
+export default function MaintenanceManagement({ role }: MaintenanceManagementProps) {
   const canCreate = role !== 'Viewer/Auditor'
   const isTechnician = role === 'Technician'
 
@@ -166,16 +163,12 @@ export default function MaintenanceManagement({
       ).length,
       corrective: rows.filter(
         (record) =>
-          record.maintenanceType === 'Corrective' ||
-          record.maintenanceType === 'Repair',
+          record.maintenanceType === 'Corrective' || record.maintenanceType === 'Repair',
       ).length,
       thisMonth: rows.filter((record) => {
         const date = new Date(record.performedAt)
 
-        return (
-          date.getMonth() === currentMonth &&
-          date.getFullYear() === currentYear
-        )
+        return date.getMonth() === currentMonth && date.getFullYear() === currentYear
       }).length,
     }
   }, [rows])
@@ -189,52 +182,36 @@ export default function MaintenanceManagement({
       cutoff.setDate(today.getDate() - Number(dateFilter))
     }
 
-    return rows.filter((record) => {
-      const matchesSearch =
-        !query ||
-        record.id.toLowerCase().includes(query) ||
-        record.assetName.toLowerCase().includes(query) ||
-        record.assetShortId.toLowerCase().includes(query) ||
-        record.assetId.toLowerCase().includes(query) ||
-        record.serialNumber.toLowerCase().includes(query) ||
-        record.performerName.toLowerCase().includes(query) ||
-        record.description.toLowerCase().includes(query)
+    return rows
+      .filter((record) => {
+        const matchesSearch =
+          !query ||
+          record.id.toLowerCase().includes(query) ||
+          record.assetName.toLowerCase().includes(query) ||
+          record.assetShortId.toLowerCase().includes(query) ||
+          record.assetId.toLowerCase().includes(query) ||
+          record.serialNumber.toLowerCase().includes(query) ||
+          record.performerName.toLowerCase().includes(query) ||
+          record.description.toLowerCase().includes(query)
 
-      const matchesAssetType =
-        assetTypeFilter === 'All Types' ||
-        record.assetType === assetTypeFilter
+        const matchesAssetType =
+          assetTypeFilter === 'All Types' || record.assetType === assetTypeFilter
 
-      const matchesMaintenanceType =
-        maintenanceTypeFilter === 'All Types' ||
-        record.maintenanceType === maintenanceTypeFilter
+        const matchesMaintenanceType =
+          maintenanceTypeFilter === 'All Types' ||
+          record.maintenanceType === maintenanceTypeFilter
 
-      const recordDate = new Date(record.performedAt)
-      const matchesDate =
-        dateFilter === 'all' || recordDate >= cutoff
+        const recordDate = new Date(record.performedAt)
+        const matchesDate = dateFilter === 'all' || recordDate >= cutoff
 
-      return (
-        matchesSearch &&
-        matchesAssetType &&
-        matchesMaintenanceType &&
-        matchesDate
+        return matchesSearch && matchesAssetType && matchesMaintenanceType && matchesDate
+      })
+      .sort(
+        (a, b) => new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime(),
       )
-    }).sort(
-      (a, b) =>
-        new Date(b.performedAt).getTime() -
-        new Date(a.performedAt).getTime(),
-    )
-  }, [
-    rows,
-    search,
-    assetTypeFilter,
-    maintenanceTypeFilter,
-    dateFilter,
-  ])
+  }, [rows, search, assetTypeFilter, maintenanceTypeFilter, dateFilter])
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredRecords.length / pageSize),
-  )
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize))
   const safeCurrentPage = Math.min(currentPage, totalPages)
 
   const paginatedRecords = filteredRecords.slice(
@@ -242,9 +219,7 @@ export default function MaintenanceManagement({
     safeCurrentPage * pageSize,
   )
 
-  const availableAssets = assetInventory.filter(
-    (asset) => asset.status !== 'Retired',
-  )
+  const availableAssets = assetInventory.filter((asset) => asset.status !== 'Retired')
 
   function clearFilters() {
     setSearch('')
@@ -299,9 +274,7 @@ export default function MaintenanceManagement({
       return
     }
 
-    const selectedAsset = assetInventory.find(
-      (asset) => asset.id === selectedAssetId,
-    )
+    const selectedAsset = assetInventory.find((asset) => asset.id === selectedAssetId)
 
     if (!selectedAsset || selectedAsset.status === 'Retired') {
       setFormError('Please select a valid non-retired asset.')
@@ -368,8 +341,7 @@ export default function MaintenanceManagement({
             Maintenance Management
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Record and view completed maintenance history for infrastructure
-            assets.
+            Record and view completed maintenance history for infrastructure assets.
           </p>
         </div>
 
@@ -425,9 +397,7 @@ export default function MaintenanceManagement({
                 <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
                   {card.value}
                 </p>
-                <p className="mt-1 text-xs text-slate-400">
-                  {card.description}
-                </p>
+                <p className="mt-1 text-xs text-slate-400">{card.description}</p>
               </div>
             </article>
           )
@@ -518,9 +488,7 @@ export default function MaintenanceManagement({
       <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-4">
           <div>
-            <h2 className="font-semibold text-slate-900">
-              Maintenance Records
-            </h2>
+            <h2 className="font-semibold text-slate-900">Maintenance Records</h2>
             <p className="mt-1 text-xs text-slate-500">
               Completed maintenance activity and service history
             </p>
@@ -547,9 +515,7 @@ export default function MaintenanceManagement({
                 <article key={record.id} className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-blue-600">
-                        {record.id}
-                      </p>
+                      <p className="text-xs font-medium text-blue-600">{record.id}</p>
                       <h3 className="mt-1 font-semibold text-slate-900">
                         {record.assetName}
                       </h3>
@@ -563,9 +529,7 @@ export default function MaintenanceManagement({
                       {record.maintenanceType}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-600">
-                    {record.description}
-                  </p>
+                  <p className="text-sm text-slate-600">{record.description}</p>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <p className="text-xs text-slate-400">Performed By</p>
@@ -607,9 +571,7 @@ export default function MaintenanceManagement({
                         {record.id}
                       </td>
                       <td className="px-4 py-4">
-                        <p className="font-medium text-slate-900">
-                          {record.assetName}
-                        </p>
+                        <p className="font-medium text-slate-900">{record.assetName}</p>
                         <p className="mt-1 text-xs text-slate-400">
                           {record.assetShortId} · {record.serialNumber}
                         </p>
@@ -646,10 +608,8 @@ export default function MaintenanceManagement({
         <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
             Showing{' '}
-            {filteredRecords.length === 0
-              ? 0
-              : (safeCurrentPage - 1) * pageSize + 1}{' '}
-            – {Math.min(safeCurrentPage * pageSize, filteredRecords.length)} of{' '}
+            {filteredRecords.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1} –{' '}
+            {Math.min(safeCurrentPage * pageSize, filteredRecords.length)} of{' '}
             {filteredRecords.length} records
           </p>
           <div className="flex flex-wrap items-center gap-3">
@@ -683,9 +643,7 @@ export default function MaintenanceManagement({
               <button
                 type="button"
                 disabled={safeCurrentPage >= totalPages}
-                onClick={() =>
-                  setCurrentPage((page) => Math.min(totalPages, page + 1))
-                }
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 disabled:opacity-40"
               >
                 Next
@@ -755,16 +713,11 @@ export default function MaintenanceManagement({
                   </select>
                   {selectedAssetId && (
                     <p className="text-xs text-slate-500">
-                      {
-                        assetInventory.find(
-                          (asset) => asset.id === selectedAssetId,
-                        )?.type
-                      }{' '}
+                      {assetInventory.find((asset) => asset.id === selectedAssetId)?.type}{' '}
                       ·{' '}
                       {
-                        assetInventory.find(
-                          (asset) => asset.id === selectedAssetId,
-                        )?.location
+                        assetInventory.find((asset) => asset.id === selectedAssetId)
+                          ?.location
                       }
                     </p>
                   )}
@@ -807,9 +760,7 @@ export default function MaintenanceManagement({
                     placeholder="Describe the completed maintenance work..."
                     className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
-                  <p className="text-xs text-slate-400">
-                    Maximum 2,000 characters.
-                  </p>
+                  <p className="text-xs text-slate-400">Maximum 2,000 characters.</p>
                 </div>
 
                 <div className="space-y-2">

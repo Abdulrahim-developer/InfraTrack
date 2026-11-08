@@ -64,7 +64,7 @@ const userManagement: NavigationItem = {
   label: 'User Management',
   href: '/users',
   icon: Users,
-  available: false,
+  available: true,
 }
 
 const auditLogs: NavigationItem = {
