@@ -33,10 +33,10 @@ export interface DashboardActivity {
   details: string
   timestamp: string
   performedBy: string
+  performedByUserId: string
 }
 
 // Temporary identities for dashboard previews.
-// Later, these will come from the authenticated server session.
 export const currentMockUserId = 'user-asset-manager-01'
 export const currentMockTechnicianId = 'user-technician-01'
 
@@ -250,7 +250,6 @@ export const myMaintenanceRecords = maintenanceRecords
   .sort((a, b) => new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime())
 
 // Inventory data derived from assets and their current assignments.
-// Historical returned assignments are excluded from the current assignee.
 export const assetInventory = assets.map((asset) => {
   const currentAssignment = assignments.find(
     (assignment) => assignment.assetId === asset.id && assignment.returnedAt === null,
@@ -311,7 +310,7 @@ export const assetsByStatus = ['Active', 'Maintenance', 'In Storage', 'Retired']
   }),
 )
 
-// Fictional activity records for dashboard UI development.
+// Fictional activity records for dashboard and audit-log UI development.
 export const recentActivity: DashboardActivity[] = [
   {
     id: '1',
@@ -321,6 +320,7 @@ export const recentActivity: DashboardActivity[] = [
     details: 'Asset assigned to a department',
     timestamp: '2026-11-04T10:24:00',
     performedBy: 'Asset Manager',
+    performedByUserId: currentMockUserId,
   },
   {
     id: '2',
@@ -330,6 +330,7 @@ export const recentActivity: DashboardActivity[] = [
     details: 'New infrastructure asset registered',
     timestamp: '2026-11-04T09:57:00',
     performedBy: 'Administrator',
+    performedByUserId: 'user-administrator-01',
   },
   {
     id: '3',
@@ -339,6 +340,7 @@ export const recentActivity: DashboardActivity[] = [
     details: 'Maintenance record created',
     timestamp: '2026-11-03T16:12:00',
     performedBy: 'Technician',
+    performedByUserId: currentMockTechnicianId,
   },
   {
     id: '4',
@@ -348,6 +350,7 @@ export const recentActivity: DashboardActivity[] = [
     details: 'Asset information updated',
     timestamp: '2026-11-03T11:36:00',
     performedBy: 'Asset Manager',
+    performedByUserId: currentMockUserId,
   },
   {
     id: '5',
@@ -357,5 +360,6 @@ export const recentActivity: DashboardActivity[] = [
     details: 'Asset assignment returned',
     timestamp: '2026-11-02T17:20:00',
     performedBy: 'Technician',
+    performedByUserId: currentMockTechnicianId,
   },
 ]

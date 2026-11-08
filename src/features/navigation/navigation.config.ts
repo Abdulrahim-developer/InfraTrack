@@ -71,7 +71,7 @@ const auditLogs: NavigationItem = {
   label: 'Audit Logs',
   href: '/audit-logs',
   icon: FileText,
-  available: false,
+  available: true,
 }
 
 const settings: NavigationItem = {
