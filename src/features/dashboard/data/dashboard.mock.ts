@@ -18,6 +18,7 @@ interface MockAsset {
 }
 
 interface MockAssignment {
+  id: string
   assetId: string
   assignedToUserId: string | null
   assignedAt: string
@@ -120,36 +121,42 @@ const assets: MockAsset[] = [
 // An assignment is current when returnedAt is null.
 export const assignments: MockAssignment[] = [
   {
+    id: 'ASN-0001',
     assetId: assets[0].id,
     assignedToUserId: currentMockUserId,
     assignedAt: '2026-10-28T09:00:00',
     returnedAt: null,
   },
   {
+    id: 'ASN-0002',
     assetId: assets[2].id,
     assignedToUserId: currentMockTechnicianId,
     assignedAt: '2026-10-25T10:30:00',
     returnedAt: null,
   },
   {
+    id: 'ASN-0003',
     assetId: assets[4].id,
     assignedToUserId: currentMockUserId,
     assignedAt: '2026-10-22T11:15:00',
     returnedAt: null,
   },
   {
+    id: 'ASN-0004',
     assetId: assets[6].id,
     assignedToUserId: currentMockUserId,
     assignedAt: '2026-10-20T14:00:00',
     returnedAt: null,
   },
   {
+    id: 'ASN-0005',
     assetId: assets[3].id,
     assignedToUserId: currentMockUserId,
     assignedAt: '2026-10-10T10:00:00',
     returnedAt: '2026-10-20T10:00:00',
   },
   {
+    id: 'ASN-0006',
     assetId: assets[5].id,
     assignedToUserId: currentMockTechnicianId,
     assignedAt: '2026-10-26T09:30:00',

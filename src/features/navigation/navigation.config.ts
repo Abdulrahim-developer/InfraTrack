@@ -43,7 +43,7 @@ const assignments: NavigationItem = {
   label: 'Assignments',
   href: '/assignments',
   icon: ClipboardList,
-  available: false,
+  available: true,
 }
 
 const maintenance: NavigationItem = {
