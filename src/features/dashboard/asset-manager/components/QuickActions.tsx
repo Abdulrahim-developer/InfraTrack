@@ -1,4 +1,3 @@
-
 import { ArrowRight, ClipboardPlus, Search, UserPlus } from 'lucide-react'
 
 const actions = [
@@ -26,15 +25,10 @@ export default function QuickActions() {
       className="min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
     >
       <div>
-        <h2
-          id="quick-actions-heading"
-          className="text-base font-semibold text-slate-900"
-        >
+        <h2 id="quick-actions-heading" className="text-base font-semibold text-slate-900">
           Quick Actions
         </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Common asset management tasks
-        </p>
+        <p className="mt-1 text-sm text-slate-500">Common asset management tasks</p>
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -47,17 +41,11 @@ export default function QuickActions() {
               className="flex min-w-0 items-start gap-3 rounded-lg border border-slate-200 p-4"
             >
               <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-50">
-                <Icon
-                  size={20}
-                  className="text-blue-600"
-                  aria-hidden="true"
-                />
+                <Icon size={20} className="text-blue-600" aria-hidden="true" />
               </div>
 
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-slate-800">
-                  {action.title}
-                </h3>
+                <h3 className="text-sm font-semibold text-slate-800">{action.title}</h3>
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">
                   {action.description}
                 </p>

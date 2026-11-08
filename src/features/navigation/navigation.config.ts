@@ -7,6 +7,7 @@ import {
   Settings,
   Users,
   Wrench,
+  UserCircle,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -80,6 +81,13 @@ const settings: NavigationItem = {
   available: false,
 }
 
+const profileSettings: NavigationItem = {
+  label: 'Profile & Settings',
+  href: '/profile',
+  icon: UserCircle,
+  available: false,
+}
+
 export const navigationByRole: Record<AppRole, NavigationSection[]> = {
   Administrator: [
     {
@@ -124,6 +132,10 @@ export const navigationByRole: Record<AppRole, NavigationSection[]> = {
     {
       title: 'Workspace',
       items: [dashboard, assetInventory, reports],
+    },
+    {
+      title: 'Account',
+      items: [profileSettings],
     },
   ],
 }

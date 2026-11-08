@@ -47,9 +47,9 @@ export default function AppHeader({ role, onMenuClick }: AppHeaderProps) {
           </h1>
 
           <p className="mt-0.5 hidden text-xs text-slate-500 xl:block">
-           {isDashboard
-  ? 'Your infrastructure management overview.'
-  : 'Infrastructure Asset Management'}
+            {isDashboard
+              ? 'Your infrastructure management overview.'
+              : 'Infrastructure Asset Management'}
           </p>
         </div>
       </div>

@@ -12,6 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppAssetsRouteImport } from './routes/_app.assets'
+import { Route as AppAssetsIndexRouteImport } from './routes/_app.assets.index'
+import { Route as AppAssetsNewRouteImport } from './routes/_app.assets.new'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -27,27 +30,57 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAssetsRoute = AppAssetsRouteImport.update({
+  id: '/assets',
+  path: '/assets',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAssetsIndexRoute = AppAssetsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAssetsRoute,
+} as any)
+const AppAssetsNewRoute = AppAssetsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AppAssetsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/about': typeof AboutRoute
+  '/assets': typeof AppAssetsRouteWithChildren
+  '/assets/new': typeof AppAssetsNewRoute
+  '/assets/': typeof AppAssetsIndexRoute
 }
 export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/': typeof AppIndexRoute
+  '/assets/new': typeof AppAssetsNewRoute
+  '/assets': typeof AppAssetsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/about': typeof AboutRoute
+  '/_app/assets': typeof AppAssetsRouteWithChildren
   '/_app/': typeof AppIndexRoute
+  '/_app/assets/new': typeof AppAssetsNewRoute
+  '/_app/assets/': typeof AppAssetsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about'
+  fullPaths: '/' | '/about' | '/assets' | '/assets/new' | '/assets/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/about' | '/'
-  id: '__root__' | '/_app' | '/about' | '/_app/'
+  to: '/about' | '/' | '/assets/new' | '/assets'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/about'
+    | '/_app/assets'
+    | '/_app/'
+    | '/_app/assets/new'
+    | '/_app/assets/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -78,14 +111,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/assets': {
+      id: '/_app/assets'
+      path: '/assets'
+      fullPath: '/assets'
+      preLoaderRoute: typeof AppAssetsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/assets/': {
+      id: '/_app/assets/'
+      path: '/'
+      fullPath: '/assets/'
+      preLoaderRoute: typeof AppAssetsIndexRouteImport
+      parentRoute: typeof AppAssetsRoute
+    }
+    '/_app/assets/new': {
+      id: '/_app/assets/new'
+      path: '/new'
+      fullPath: '/assets/new'
+      preLoaderRoute: typeof AppAssetsNewRouteImport
+      parentRoute: typeof AppAssetsRoute
+    }
   }
 }
 
+interface AppAssetsRouteChildren {
+  AppAssetsNewRoute: typeof AppAssetsNewRoute
+  AppAssetsIndexRoute: typeof AppAssetsIndexRoute
+}
+
+const AppAssetsRouteChildren: AppAssetsRouteChildren = {
+  AppAssetsNewRoute: AppAssetsNewRoute,
+  AppAssetsIndexRoute: AppAssetsIndexRoute,
+}
+
+const AppAssetsRouteWithChildren = AppAssetsRoute._addFileChildren(
+  AppAssetsRouteChildren,
+)
+
 interface AppRouteChildren {
+  AppAssetsRoute: typeof AppAssetsRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAssetsRoute: AppAssetsRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
 }
 

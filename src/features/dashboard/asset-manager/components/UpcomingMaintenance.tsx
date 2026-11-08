@@ -1,4 +1,3 @@
-
 import { CalendarClock, ClipboardList } from 'lucide-react'
 
 export default function UpcomingMaintenance() {
@@ -9,11 +8,7 @@ export default function UpcomingMaintenance() {
     >
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-blue-50">
-          <CalendarClock
-            size={21}
-            className="text-blue-600"
-            aria-hidden="true"
-          />
+          <CalendarClock size={21} className="text-blue-600" aria-hidden="true" />
         </div>
 
         <div className="min-w-0">
@@ -23,19 +18,13 @@ export default function UpcomingMaintenance() {
           >
             Upcoming Maintenance
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Scheduled maintenance overview
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Scheduled maintenance overview</p>
         </div>
       </div>
 
       <div className="mt-6 flex min-h-44 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center">
         <div className="flex size-12 items-center justify-center rounded-full bg-slate-100">
-          <ClipboardList
-            size={23}
-            className="text-slate-500"
-            aria-hidden="true"
-          />
+          <ClipboardList size={23} className="text-slate-500" aria-hidden="true" />
         </div>
 
         <h3 className="mt-3 text-sm font-semibold text-slate-800">

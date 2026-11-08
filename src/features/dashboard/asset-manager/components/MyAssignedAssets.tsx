@@ -1,4 +1,3 @@
-
 import { CalendarDays, MapPin } from 'lucide-react'
 import { myAssignedAssets } from '../../data/dashboard.mock'
 
@@ -59,10 +58,7 @@ export default function MyAssignedAssets() {
           {/* Mobile layout */}
           <div className="mt-5 space-y-3 md:hidden">
             {myAssignedAssets.map((asset) => (
-              <article
-                key={asset.id}
-                className="rounded-lg border border-slate-200 p-4"
-              >
+              <article key={asset.id} className="rounded-lg border border-slate-200 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-slate-500">
@@ -141,9 +137,7 @@ export default function MyAssignedAssets() {
                     <td className="whitespace-nowrap px-4 py-4 font-medium text-blue-700">
                       {getShortAssetId(asset.id)}
                     </td>
-                    <td className="px-4 py-4 font-medium text-slate-900">
-                      {asset.name}
-                    </td>
+                    <td className="px-4 py-4 font-medium text-slate-900">{asset.name}</td>
                     <td className="whitespace-nowrap px-4 py-4 text-slate-600">
                       {asset.type}
                     </td>

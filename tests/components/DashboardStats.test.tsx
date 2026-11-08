@@ -14,7 +14,7 @@ describe('DashboardStats', () => {
     expect(within(statistics).getByText('8')).toBeInTheDocument()
 
     expect(within(statistics).getByText('Assigned Assets')).toBeInTheDocument()
-    expect(within(statistics).getByText('4')).toBeInTheDocument()
+    expect(within(statistics).getByText('5')).toBeInTheDocument()
 
     expect(within(statistics).getByText('Under Maintenance')).toBeInTheDocument()
     expect(within(statistics).getByText('2')).toBeInTheDocument()

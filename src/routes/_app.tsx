@@ -6,10 +6,9 @@ export const Route = createFileRoute('/_app')({
 })
 
 function AuthenticatedLayout() {
-  // Temporary role for UI development.
-  // Later, this will come from the authenticated session.
+  // Temporary Administrator role for UI development.
   return (
-   <AppLayout role="Administrator">
+    <AppLayout role="Administrator">
       <Outlet />
     </AppLayout>
   )

@@ -1,10 +1,13 @@
-
-import { Archive, Boxes, UserCheck, Wrench } from 'lucide-react'
+import { Archive, Boxes, ClipboardList, UserCheck, Wrench } from 'lucide-react'
 import DashboardStatCard from './DashboardStatCard'
-import { assetsByStatus, dashboardStats } from '../../data/dashboard.mock'
+import {
+  assetsByStatus,
+  dashboardStats,
+  technicianDashboardStats,
+} from '../../data/dashboard.mock'
 
 interface DashboardStatsProps {
-  variant?: 'administrator' | 'asset-manager'
+  variant?: 'administrator' | 'asset-manager' | 'technician' | 'viewer-auditor'
 }
 
 const inStorageCount =
@@ -14,59 +17,86 @@ export default function DashboardStats({
   variant = 'administrator',
 }: DashboardStatsProps) {
   const metrics =
-    variant === 'asset-manager'
+    variant === 'technician'
       ? [
           {
-            title: 'Total Assets',
-            value: dashboardStats.totalAssets,
-            description: 'Across all registered assets',
+            title: 'My Assigned Assets',
+            value: technicianDashboardStats.assignedAssets,
+            description: 'Assets currently assigned to you',
             icon: Boxes,
+          },
+          {
+            title: 'Maintenance Records',
+            value: technicianDashboardStats.maintenanceRecords,
+            description: 'Maintenance records performed by you',
+            icon: ClipboardList,
           },
           {
             title: 'Active Assets',
-            value: dashboardStats.activeAssets,
-            description: 'Assets currently active',
+            value: technicianDashboardStats.activeAssets,
+            description: 'Your assigned assets currently active',
             icon: UserCheck,
           },
           {
             title: 'Under Maintenance',
-            value: dashboardStats.maintenanceAssets,
-            description: 'Assets currently in maintenance',
+            value: technicianDashboardStats.maintenanceAssets,
+            description: 'Your assigned assets under maintenance',
             icon: Wrench,
           },
-          {
-            title: 'In Storage',
-            value: inStorageCount,
-            description: 'Assets held in inventory',
-            icon: Archive,
-          },
         ]
-      : [
-          {
-            title: 'Total Assets',
-            value: dashboardStats.totalAssets,
-            description: 'Across all registered assets',
-            icon: Boxes,
-          },
-          {
-            title: 'Assigned Assets',
-            value: dashboardStats.assignedAssets,
-            description: 'Currently assigned assets',
-            icon: UserCheck,
-          },
-          {
-            title: 'Under Maintenance',
-            value: dashboardStats.maintenanceAssets,
-            description: 'Assets currently in maintenance',
-            icon: Wrench,
-          },
-          {
-            title: 'In Storage',
-            value: inStorageCount,
-            description: 'Assets held in inventory',
-            icon: Archive,
-          },
-        ]
+      : variant === 'asset-manager' || variant === 'viewer-auditor'
+        ? [
+            {
+              title: 'Total Assets',
+              value: dashboardStats.totalAssets,
+              description: 'Across all registered assets',
+              icon: Boxes,
+            },
+            {
+              title: 'Active Assets',
+              value: dashboardStats.activeAssets,
+              description: 'Assets currently active',
+              icon: UserCheck,
+            },
+            {
+              title: 'Under Maintenance',
+              value: dashboardStats.maintenanceAssets,
+              description: 'Assets currently in maintenance',
+              icon: Wrench,
+            },
+            {
+              title: 'In Storage',
+              value: inStorageCount,
+              description: 'Assets held in inventory',
+              icon: Archive,
+            },
+          ]
+        : [
+            {
+              title: 'Total Assets',
+              value: dashboardStats.totalAssets,
+              description: 'Across all registered assets',
+              icon: Boxes,
+            },
+            {
+              title: 'Assigned Assets',
+              value: dashboardStats.assignedAssets,
+              description: 'Currently assigned assets',
+              icon: UserCheck,
+            },
+            {
+              title: 'Under Maintenance',
+              value: dashboardStats.maintenanceAssets,
+              description: 'Assets currently in maintenance',
+              icon: Wrench,
+            },
+            {
+              title: 'In Storage',
+              value: inStorageCount,
+              description: 'Assets held in inventory',
+              icon: Archive,
+            },
+          ]
 
   return (
     <section
