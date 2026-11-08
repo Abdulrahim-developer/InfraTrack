@@ -118,7 +118,7 @@ const assets: MockAsset[] = [
 ]
 
 // An assignment is current when returnedAt is null.
-const assignments: MockAssignment[] = [
+export const assignments: MockAssignment[] = [
   {
     assetId: assets[0].id,
     assignedToUserId: currentMockUserId,
@@ -158,7 +158,7 @@ const assignments: MockAssignment[] = [
 ]
 
 // Fictional completed maintenance events for UI development.
-const maintenanceRecords: MockMaintenanceRecord[] = [
+export const maintenanceRecords: MockMaintenanceRecord[] = [
   {
     id: 'maintenance-001',
     assetId: assets[2].id,
