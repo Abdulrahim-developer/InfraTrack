@@ -9,11 +9,8 @@ import {
   X,
 } from 'lucide-react'
 
-import {
-  assetInventory,
-  currentMockTechnicianId,
-  maintenanceRecords,
-} from '#/features/dashboard/data/dashboard.mock'
+import { currentMockTechnicianId } from '#/features/dashboard/data/dashboard.mock'
+import { useAppData } from '#/features/dashboard/context/AppDataContext'
 import type { AppRole } from '#/features/navigation/navigation.config'
 
 type MaintenanceType = 'Preventive' | 'Corrective' | 'Inspection' | 'Repair'
@@ -35,6 +32,8 @@ interface MaintenanceUser {
 
 interface MaintenanceManagementProps {
   role: AppRole
+  initialAssetId?: string
+  initialAction?: 'view' | 'create'
 }
 
 const mockUsers: MaintenanceUser[] = [
@@ -101,13 +100,21 @@ function getTypeStyle(type: string) {
   return 'bg-orange-50 text-orange-700'
 }
 
-export default function MaintenanceManagement({ role }: MaintenanceManagementProps) {
-  const canCreate = role !== 'Viewer/Auditor'
+export default function MaintenanceManagement({
+  role,
+  initialAssetId,
+  initialAction,
+}: MaintenanceManagementProps) {
+  const canCreate =
+    role === 'Administrator' || role === 'Asset Manager' || role === 'Technician'
   const isTechnician = role === 'Technician'
 
-  const [records, setRecords] = useState<MaintenanceRecord[]>(() =>
-    maintenanceRecords.map((record) => ({ ...record })),
-  )
+  const {
+    assets,
+    assignments,
+    maintenanceRecords: records,
+    setMaintenanceRecords: setRecords,
+  } = useAppData()
 
   const [search, setSearch] = useState('')
   const [assetTypeFilter, setAssetTypeFilter] = useState('All Types')
@@ -116,8 +123,10 @@ export default function MaintenanceManagement({ role }: MaintenanceManagementPro
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
 
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedAssetId, setSelectedAssetId] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(
+    Boolean(initialAssetId && initialAction === 'create' && canCreate),
+  )
+  const [selectedAssetId, setSelectedAssetId] = useState(initialAssetId ?? '')
   const [selectedType, setSelectedType] = useState<MaintenanceType>('Preventive')
   const [description, setDescription] = useState('')
   const [performedBy, setPerformedBy] = useState(
@@ -127,27 +136,42 @@ export default function MaintenanceManagement({ role }: MaintenanceManagementPro
   const [formError, setFormError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
-  const rows = useMemo(
-    () =>
-      records.flatMap((record) => {
-        const asset = assetInventory.find((item) => item.id === record.assetId)
+  const rows = useMemo(() => {
+    const technicianAssetIds = isTechnician
+      ? new Set(
+          assignments
+            .filter(
+              (assignment) =>
+                assignment.assignedToUserId === currentMockTechnicianId &&
+                assignment.returnedAt === null,
+            )
+            .map((assignment) => assignment.assetId),
+        )
+      : null
 
-        if (!asset) return []
+    return records.flatMap((record) => {
+      // Technicians can view history only for their currently assigned assets.
+      if (technicianAssetIds && !technicianAssetIds.has(record.assetId)) {
+        return []
+      }
 
-        return [
-          {
-            ...record,
-            assetName: asset.name,
-            assetType: asset.type,
-            assetShortId: asset.id.slice(0, 8).toUpperCase(),
-            serialNumber: asset.serialNumber,
-            performerName: getPerformerName(record.performedBy),
-            performerEmail: getPerformerEmail(record.performedBy),
-          },
-        ]
-      }),
-    [records],
-  )
+      const asset = assets.find((item) => item.id === record.assetId)
+
+      if (!asset) return []
+
+      return [
+        {
+          ...record,
+          assetName: asset.name,
+          assetType: asset.type,
+          assetShortId: asset.id.slice(0, 8).toUpperCase(),
+          serialNumber: asset.serialNumber,
+          performerName: getPerformerName(record.performedBy),
+          performerEmail: getPerformerEmail(record.performedBy),
+        },
+      ]
+    })
+  }, [records, isTechnician, assignments, assets])
 
   const summary = useMemo(() => {
     const now = new Date()
@@ -184,6 +208,9 @@ export default function MaintenanceManagement({ role }: MaintenanceManagementPro
 
     return rows
       .filter((record) => {
+        const matchesAsset =
+          initialAction !== 'view' || !initialAssetId || record.assetId === initialAssetId
+
         const matchesSearch =
           !query ||
           record.id.toLowerCase().includes(query) ||
@@ -204,12 +231,26 @@ export default function MaintenanceManagement({ role }: MaintenanceManagementPro
         const recordDate = new Date(record.performedAt)
         const matchesDate = dateFilter === 'all' || recordDate >= cutoff
 
-        return matchesSearch && matchesAssetType && matchesMaintenanceType && matchesDate
+        return (
+          matchesAsset &&
+          matchesSearch &&
+          matchesAssetType &&
+          matchesMaintenanceType &&
+          matchesDate
+        )
       })
       .sort(
         (a, b) => new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime(),
       )
-  }, [rows, search, assetTypeFilter, maintenanceTypeFilter, dateFilter])
+  }, [
+    rows,
+    search,
+    assetTypeFilter,
+    maintenanceTypeFilter,
+    dateFilter,
+    initialAction,
+    initialAssetId,
+  ])
 
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize))
   const safeCurrentPage = Math.min(currentPage, totalPages)
@@ -219,7 +260,21 @@ export default function MaintenanceManagement({ role }: MaintenanceManagementPro
     safeCurrentPage * pageSize,
   )
 
-  const availableAssets = assetInventory.filter((asset) => asset.status !== 'Retired')
+  const technicianAssignedAssetIds = new Set(
+    assignments
+      .filter(
+        (assignment) =>
+          assignment.assignedToUserId === currentMockTechnicianId &&
+          assignment.returnedAt === null,
+      )
+      .map((assignment) => assignment.assetId),
+  )
+
+  const availableAssets = assets.filter(
+    (asset) =>
+      asset.status !== 'Retired' &&
+      (!isTechnician || technicianAssignedAssetIds.has(asset.id)),
+  )
 
   function clearFilters() {
     setSearch('')
@@ -230,7 +285,7 @@ export default function MaintenanceManagement({ role }: MaintenanceManagementPro
   }
 
   function resetForm() {
-    setSelectedAssetId('')
+    setSelectedAssetId(initialAssetId ?? '')
     setSelectedType('Preventive')
     setDescription('')
     setPerformedBy(isTechnician ? currentMockTechnicianId : '')
@@ -274,10 +329,19 @@ export default function MaintenanceManagement({ role }: MaintenanceManagementPro
       return
     }
 
-    const selectedAsset = assetInventory.find((asset) => asset.id === selectedAssetId)
+    const selectedAsset = assets.find((asset) => asset.id === selectedAssetId)
 
     if (!selectedAsset || selectedAsset.status === 'Retired') {
       setFormError('Please select a valid non-retired asset.')
+      return
+    }
+
+    // Recheck the assignment before creating a Technician maintenance record.
+    // The backend must enforce this same rule when PostgreSQL is integrated.
+    if (isTechnician && !technicianAssignedAssetIds.has(selectedAssetId)) {
+      setFormError(
+        'You can only record maintenance for assets currently assigned to you.',
+      )
       return
     }
 
@@ -713,12 +777,8 @@ export default function MaintenanceManagement({ role }: MaintenanceManagementPro
                   </select>
                   {selectedAssetId && (
                     <p className="text-xs text-slate-500">
-                      {assetInventory.find((asset) => asset.id === selectedAssetId)?.type}{' '}
-                      ·{' '}
-                      {
-                        assetInventory.find((asset) => asset.id === selectedAssetId)
-                          ?.location
-                      }
+                      {assets.find((asset) => asset.id === selectedAssetId)?.type} ·{' '}
+                      {assets.find((asset) => asset.id === selectedAssetId)?.location}
                     </p>
                   )}
                 </div>

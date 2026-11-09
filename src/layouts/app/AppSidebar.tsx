@@ -1,14 +1,20 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, LogOut } from 'lucide-react'
 import { navigationByRole, type AppRole } from '#/features/navigation/navigation.config'
 
 interface AppSidebarProps {
   role: AppRole
   isOpen: boolean
   onClose: () => void
+  onSignOutClick: () => void
 }
 
-export default function AppSidebar({ role, isOpen, onClose }: AppSidebarProps) {
+export default function AppSidebar({
+  role,
+  isOpen,
+  onClose,
+  onSignOutClick,
+}: AppSidebarProps) {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
@@ -17,7 +23,6 @@ export default function AppSidebar({ role, isOpen, onClose }: AppSidebarProps) {
 
   return (
     <>
-      {/* Mobile backdrop */}
       {isOpen && (
         <button
           type="button"
@@ -29,7 +34,7 @@ export default function AppSidebar({ role, isOpen, onClose }: AppSidebarProps) {
 
       <aside
         aria-label="Main navigation"
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[#142B4F] text-white transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-72 flex-col overflow-hidden bg-[#142B4F] text-white transition-transform duration-300 lg:sticky lg:top-0 lg:z-40 lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -70,8 +75,8 @@ export default function AppSidebar({ role, isOpen, onClose }: AppSidebarProps) {
           </button>
         </div>
 
-        {/* Navigation sections */}
-        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-6">
+        {/* Navigation */}
+        <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-6">
           {navigationSections.map((section, sectionIndex) => (
             <div
               key={section.title}
@@ -84,7 +89,10 @@ export default function AppSidebar({ role, isOpen, onClose }: AppSidebarProps) {
               <ul className="space-y-1">
                 {section.items.map((item) => {
                   const Icon = item.icon
-                  const isActive = pathname === item.href
+
+                  const isActive =
+                    pathname === item.href ||
+                    (item.href !== '/' && pathname.startsWith(`${item.href}/`))
 
                   const className = `flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors ${
                     isActive
@@ -96,9 +104,9 @@ export default function AppSidebar({ role, isOpen, onClose }: AppSidebarProps) {
 
                   return (
                     <li key={item.label}>
-                      {item.available && item.href === '/' ? (
+                      {item.available ? (
                         <Link
-                          to="/"
+                          to={item.href as never}
                           onClick={onClose}
                           aria-current={isActive ? 'page' : undefined}
                           className={className}
@@ -124,8 +132,8 @@ export default function AppSidebar({ role, isOpen, onClose }: AppSidebarProps) {
           ))}
         </nav>
 
-        {/* Server room image and footer */}
-        <div className="relative h-52 shrink-0 overflow-hidden bg-[#142B4F]">
+        {/* Persistent bottom section with blended server-room image */}
+        <div className="relative h-44 shrink-0 overflow-hidden bg-[#142B4F]">
           <img
             src="/images/server-room.png"
             alt=""
@@ -133,20 +141,24 @@ export default function AppSidebar({ role, isOpen, onClose }: AppSidebarProps) {
             className="absolute inset-0 size-full object-cover object-center opacity-80"
           />
 
-          {/* Blend the top edge into the sidebar */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#142B4F] via-[#142B4F]/30 to-transparent" />
+          {/* Blend the image into the sidebar vertically */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#142B4F] via-[#142B4F]/20 to-[#142B4F]" />
 
-          {/* Blend both side edges */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#142B4F]/60 via-transparent to-[#142B4F]/50" />
+          {/* Soften the left and right image edges */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#142B4F]/70 via-transparent to-[#142B4F]/70" />
 
-          {/* Darken the bottom for the version label */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#142B4F] via-transparent to-transparent" />
+          <button
+            type="button"
+            onClick={onSignOutClick}
+            className="absolute inset-x-3 bottom-12 z-10 flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-white transition-colors hover:bg-white/10"
+          >
+            <LogOut size={20} aria-hidden="true" />
+            <span>Sign Out</span>
+          </button>
 
-          <div className="absolute inset-x-0 bottom-0 px-6 pb-5 text-center">
-            <p className="text-sm font-medium tracking-wide text-slate-300">
-              InfraTrack v1.1
-            </p>
-          </div>
+          <p className="absolute inset-x-0 bottom-3 z-10 text-center text-xs font-medium tracking-wide text-slate-300">
+            InfraTrack v1.1
+          </p>
         </div>
       </aside>
     </>

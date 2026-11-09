@@ -1,5 +1,8 @@
+import { useMemo } from 'react'
 import { CalendarDays, MapPin } from 'lucide-react'
-import { technicianAssignedAssets } from '../../data/dashboard.mock'
+
+import { currentMockTechnicianId } from '../../data/dashboard.mock'
+import { useAppData } from '../../context/AppDataContext'
 
 const statusStyles: Record<string, string> = {
   Active: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
@@ -21,6 +24,31 @@ function getShortAssetId(id: string) {
 }
 
 export default function MyAssignedAssets() {
+  const { assets, assignments } = useAppData()
+
+  const technicianAssignedAssets = useMemo(
+    () =>
+      assignments
+        .filter(
+          (assignment) =>
+            assignment.assignedToUserId === currentMockTechnicianId &&
+            assignment.returnedAt === null,
+        )
+        .flatMap((assignment) => {
+          const asset = assets.find((item) => item.id === assignment.assetId)
+
+          if (!asset) return []
+
+          return [
+            {
+              ...asset,
+              assignedAt: assignment.assignedAt,
+            },
+          ]
+        }),
+    [assignments, assets],
+  )
+
   return (
     <section
       aria-labelledby="technician-assigned-assets-heading"

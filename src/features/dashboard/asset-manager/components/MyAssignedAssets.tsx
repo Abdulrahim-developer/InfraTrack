@@ -1,5 +1,8 @@
+import { useMemo } from 'react'
 import { CalendarDays, MapPin } from 'lucide-react'
-import { myAssignedAssets } from '../../data/dashboard.mock'
+
+import { currentMockUserId } from '../../data/dashboard.mock'
+import { useAppData } from '#/features/dashboard/context/AppDataContext'
 
 const statusStyles: Record<string, string> = {
   Active: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
@@ -21,6 +24,30 @@ function getShortAssetId(id: string) {
 }
 
 export default function MyAssignedAssets() {
+  const { assets, assignments } = useAppData()
+
+  const myAssignedAssets = useMemo(() => {
+    return assignments
+      .filter(
+        (assignment) =>
+          assignment.assignedToUserId === currentMockUserId &&
+          assignment.returnedAt === null,
+      )
+      .flatMap((assignment) => {
+        const asset = assets.find((item) => item.id === assignment.assetId)
+
+        if (!asset) return []
+
+        return [
+          {
+            ...asset,
+            assignedAt: assignment.assignedAt,
+          },
+        ]
+      })
+      .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime())
+  }, [assets, assignments])
+
   return (
     <section
       aria-labelledby="assigned-assets-heading"
@@ -34,6 +61,7 @@ export default function MyAssignedAssets() {
           >
             My Assigned Assets
           </h2>
+
           <p className="mt-1 text-sm text-slate-500">
             Infrastructure assets currently assigned to you
           </p>
@@ -49,6 +77,7 @@ export default function MyAssignedAssets() {
           <p className="text-sm font-medium text-slate-700">
             No assets currently assigned
           </p>
+
           <p className="mt-1 text-sm text-slate-500">
             Assets assigned to your account will appear here.
           </p>
@@ -64,6 +93,7 @@ export default function MyAssignedAssets() {
                     <p className="text-xs font-medium text-slate-500">
                       {getShortAssetId(asset.id)}
                     </p>
+
                     <h3 className="mt-1 break-words text-sm font-semibold text-slate-900">
                       {asset.name}
                     </h3>
@@ -86,6 +116,7 @@ export default function MyAssignedAssets() {
 
                   <div>
                     <p className="text-xs text-slate-500">Assigned On</p>
+
                     <p className="mt-1 flex items-center gap-1 font-medium text-slate-700">
                       <CalendarDays size={14} aria-hidden="true" />
                       {formatDate(asset.assignedAt)}
@@ -99,6 +130,7 @@ export default function MyAssignedAssets() {
                     className="mt-0.5 shrink-0 text-slate-400"
                     aria-hidden="true"
                   />
+
                   <span className="break-words">{asset.location}</span>
                 </div>
               </article>
@@ -113,18 +145,23 @@ export default function MyAssignedAssets() {
                   <th scope="col" className="px-4 py-3 font-semibold">
                     Asset ID
                   </th>
+
                   <th scope="col" className="px-4 py-3 font-semibold">
                     Name
                   </th>
+
                   <th scope="col" className="px-4 py-3 font-semibold">
                     Type
                   </th>
+
                   <th scope="col" className="px-4 py-3 font-semibold">
                     Status
                   </th>
+
                   <th scope="col" className="px-4 py-3 font-semibold">
                     Location
                   </th>
+
                   <th scope="col" className="px-4 py-3 font-semibold">
                     Assigned On
                   </th>
@@ -137,10 +174,13 @@ export default function MyAssignedAssets() {
                     <td className="whitespace-nowrap px-4 py-4 font-medium text-blue-700">
                       {getShortAssetId(asset.id)}
                     </td>
+
                     <td className="px-4 py-4 font-medium text-slate-900">{asset.name}</td>
+
                     <td className="whitespace-nowrap px-4 py-4 text-slate-600">
                       {asset.type}
                     </td>
+
                     <td className="whitespace-nowrap px-4 py-4">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
@@ -150,7 +190,9 @@ export default function MyAssignedAssets() {
                         {asset.status}
                       </span>
                     </td>
+
                     <td className="px-4 py-4 text-slate-600">{asset.location}</td>
+
                     <td className="whitespace-nowrap px-4 py-4 text-slate-600">
                       {formatDate(asset.assignedAt)}
                     </td>

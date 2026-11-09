@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen } from '../utils/render'
 import { describe, expect, it } from 'vitest'
 import RecentActivity from '#/features/dashboard/components/RecentActivity'
 

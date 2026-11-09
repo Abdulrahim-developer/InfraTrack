@@ -36,7 +36,7 @@ const assetInventory: NavigationItem = {
   label: 'Asset Inventory',
   href: '/assets',
   icon: Boxes,
-  available: false,
+  available: true,
 }
 
 const assignments: NavigationItem = {
@@ -57,7 +57,7 @@ const reports: NavigationItem = {
   label: 'Reports',
   href: '/reports',
   icon: BarChart3,
-  available: false,
+  available: true,
 }
 
 const userManagement: NavigationItem = {
@@ -82,10 +82,10 @@ const settings: NavigationItem = {
 }
 
 const profileSettings: NavigationItem = {
-  label: 'Profile & Settings',
+  label: 'My Profile',
   href: '/profile',
   icon: UserCircle,
-  available: false,
+  available: true,
 }
 
 export const navigationByRole: Record<AppRole, NavigationSection[]> = {
@@ -98,12 +98,20 @@ export const navigationByRole: Record<AppRole, NavigationSection[]> = {
       title: 'Administration',
       items: [userManagement, auditLogs, settings],
     },
+    {
+      title: 'Account',
+      items: [profileSettings],
+    },
   ],
 
   'Asset Manager': [
     {
       title: 'Workspace',
       items: [dashboard, assetInventory, assignments, maintenance, reports],
+    },
+    {
+      title: 'Account',
+      items: [profileSettings],
     },
   ],
 
@@ -116,22 +124,26 @@ export const navigationByRole: Record<AppRole, NavigationSection[]> = {
           label: 'My Assigned Assets',
           href: '/my-assets',
           icon: Boxes,
-          available: false,
+          available: true,
         },
         {
           label: 'Maintenance Records',
           href: '/maintenance',
           icon: Wrench,
-          available: false,
+          available: true,
         },
       ],
+    },
+    {
+      title: 'Account',
+      items: [profileSettings],
     },
   ],
 
   'Viewer/Auditor': [
     {
       title: 'Workspace',
-      items: [dashboard, assetInventory, reports],
+      items: [dashboard, assetInventory, reports, auditLogs],
     },
     {
       title: 'Account',

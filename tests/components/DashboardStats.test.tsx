@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '../utils/render'
 import { describe, expect, it } from 'vitest'
 import DashboardStats from '#/features/dashboard/components/shared/DashboardStats'
 

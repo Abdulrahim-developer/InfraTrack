@@ -1,5 +1,6 @@
 import { Clock } from 'lucide-react'
-import { recentActivity } from '../data/dashboard.mock'
+
+import { useAppData } from '#/features/dashboard/context/AppDataContext'
 
 const activityBadgeStyles = {
   Assigned: 'bg-green-100 text-green-700',
@@ -10,6 +11,8 @@ const activityBadgeStyles = {
 }
 
 export default function RecentActivity() {
+  const { activities } = useAppData()
+
   return (
     <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
@@ -23,7 +26,7 @@ export default function RecentActivity() {
         <Clock size={20} className="shrink-0 text-slate-400" aria-hidden="true" />
       </div>
 
-      {recentActivity.length > 0 ? (
+      {activities.length > 0 ? (
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[560px] text-left">
             <thead>
@@ -44,7 +47,7 @@ export default function RecentActivity() {
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {recentActivity.map((activity) => (
+              {activities.map((activity) => (
                 <tr
                   key={activity.id}
                   className="text-sm transition-colors hover:bg-slate-50"

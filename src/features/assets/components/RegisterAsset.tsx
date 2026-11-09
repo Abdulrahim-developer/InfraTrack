@@ -16,6 +16,7 @@ import { Link } from '@tanstack/react-router'
 
 import type { AppRole } from '#/features/navigation/navigation.config'
 import type { AssetStatus, AssetType } from '#/features/dashboard/data/dashboard.mock'
+import { useAppData } from '#/features/dashboard/context/AppDataContext'
 
 interface RegisterAssetProps {
   role: AppRole
@@ -26,12 +27,13 @@ const assetTypes: AssetType[] = ['Router', 'Server', 'Switch']
 const assetStatuses: AssetStatus[] = ['Active', 'Maintenance', 'In Storage', 'Retired']
 
 const inputStyles =
-  'h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+  'h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400 dark:focus:ring-blue-900'
 
-const labelStyles = 'mb-2 block text-sm font-semibold text-slate-700'
+const labelStyles = 'mb-2 block text-sm font-semibold text-slate-700 dark:!text-slate-200'
 
 export default function RegisterAsset({ role }: RegisterAssetProps) {
   const canManageAssets = role === 'Administrator' || role === 'Asset Manager'
+  const { assets, setAssets } = useAppData()
 
   const [assetName, setAssetName] = useState('')
   const [assetType, setAssetType] = useState<AssetType | ''>('')
@@ -39,21 +41,55 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
   const [location, setLocation] = useState('')
   const [status, setStatus] = useState<AssetStatus>('Active')
   const [submitted, setSubmitted] = useState(false)
+  const [serialNumberError, setSerialNumberError] = useState('')
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!canManageAssets) return
+    if (!canManageAssets || !assetType) return
 
+    const normalizedSerialNumber = serialNumber.trim().toLowerCase()
+
+    const duplicateAsset = assets.find(
+      (asset) => asset.serialNumber.trim().toLowerCase() === normalizedSerialNumber,
+    )
+
+    if (duplicateAsset) {
+      setSerialNumberError(
+        'This serial number is already registered. Please enter a unique serial number.',
+      )
+      setSubmitted(false)
+      return
+    }
+    const newAsset = {
+      id: crypto.randomUUID(),
+      name: assetName.trim(),
+      type: assetType,
+      serialNumber: serialNumber.trim(),
+      location: location.trim(),
+      status,
+      assignedTo: null,
+      createdAt: new Date().toISOString(),
+    }
+
+    setAssets((previousAssets) => [newAsset, ...previousAssets])
+
+    setAssetName('')
+    setAssetType('')
+    setSerialNumber('')
+    setLocation('')
+    setStatus('Active')
+    setSerialNumberError('')
     setSubmitted(true)
   }
-
   if (!canManageAssets) {
     return (
-      <main className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+      <main className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <ShieldCheck size={36} className="mx-auto text-slate-400" aria-hidden="true" />
-        <h1 className="mt-4 text-xl font-bold text-slate-900">Access restricted</h1>
-        <p className="mt-2 text-sm text-slate-500">
+        <h1 className="mt-4 text-xl font-bold text-slate-900 dark:text-white">
+          Access restricted
+        </h1>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           You do not have permission to register infrastructure assets.
         </p>
         <Link
@@ -72,7 +108,7 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
       {/* Breadcrumb */}
       <nav
         aria-label="Breadcrumb"
-        className="flex flex-wrap items-center gap-2 text-sm text-slate-500"
+        className="flex flex-wrap items-center gap-2 text-sm text-slate-500 dark:text-slate-400"
       >
         <Link to="/" className="hover:text-blue-600">
           Dashboard
@@ -82,29 +118,33 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
           Asset Inventory
         </Link>
         <span>/</span>
-        <span className="font-medium text-slate-700">Register New Asset</span>
+        <span className="font-medium text-slate-700 dark:!text-slate-200">
+          Register New Asset
+        </span>
       </nav>
 
       {/* Page heading */}
       <section>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
           Register New Asset
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Add a new infrastructure asset to the inventory.
         </p>
       </section>
 
       <div className="grid min-w-0 grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(280px,0.95fr)]">
         {/* Registration form */}
-        <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-5">
-            <div className="flex size-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+        <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6">
+          <div className="mb-6 flex items-center gap-3 border-b border-slate-100 pb-5 dark:border-slate-700">
+            <div className="flex size-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
               <Boxes size={23} aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Asset Details</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Asset Details
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Enter the required asset information.
               </p>
             </div>
@@ -175,13 +215,25 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                   required
                   maxLength={100}
                   value={serialNumber}
+                  aria-invalid={Boolean(serialNumberError)}
+                  aria-describedby={serialNumberError ? 'serialNumberError' : undefined}
                   onChange={(event) => {
                     setSerialNumber(event.target.value)
+                    setSerialNumberError('')
                     setSubmitted(false)
                   }}
                   placeholder="e.g. CSR2901-7843"
                   className={inputStyles}
                 />
+                {serialNumberError && (
+                  <p
+                    id="serialNumberError"
+                    role="alert"
+                    className="mt-2 text-sm text-red-600 dark:text-red-400"
+                  >
+                    {serialNumberError}
+                  </p>
+                )}
               </div>
 
               {/* Location */}
@@ -236,13 +288,13 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
               </div>
 
               {/* System-generated information */}
-              <div className="flex min-w-0 items-center gap-3 rounded-lg bg-slate-50 p-3 sm:mt-6">
+              <div className="flex min-w-0 items-center gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800 sm:mt-6">
                 <CalendarDays
                   size={19}
                   className="shrink-0 text-slate-400"
                   aria-hidden="true"
                 />
-                <p className="text-xs leading-5 text-slate-500">
+                <p className="text-xs leading-5 text-slate-500 dark:text-slate-300">
                   Asset ID and timestamps will be generated by the system.
                 </p>
               </div>
@@ -251,20 +303,20 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
             {submitted && (
               <div
                 role="status"
-                className="mt-6 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800"
+                className="mt-6 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200"
               >
                 <Info size={18} className="mt-0.5 shrink-0" />
                 <p>
-                  Form validation passed. Database saving is not connected yet, so no
-                  asset has been registered.
+                  Asset registered successfully! It has been added to the shared Asset
+                  Inventory.
                 </p>
               </div>
             )}
 
-            <div className="mt-7 flex flex-col-reverse justify-end gap-3 border-t border-slate-100 pt-5 sm:flex-row">
+            <div className="mt-7 flex flex-col-reverse justify-end gap-3 border-t border-slate-100 pt-5 dark:border-slate-700 sm:flex-row">
               <Link
                 to="/assets"
-                className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </Link>
@@ -282,16 +334,18 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
 
         {/* Information panel */}
         <aside className="min-w-0 space-y-4">
-          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
                 <Info size={20} aria-hidden="true" />
               </div>
-              <h2 className="font-bold text-slate-900">Asset Information</h2>
+              <h2 className="font-bold text-slate-900 dark:text-white">
+                Asset Information
+              </h2>
             </div>
 
             {/* Dynamic asset illustration */}
-            <div className="flex aspect-[16/9] items-center justify-center overflow-hidden rounded-xl bg-blue-50 p-4">
+            <div className="flex aspect-[16/9] items-center justify-center overflow-hidden rounded-xl bg-blue-50 p-4 dark:bg-blue-950/40">
               {assetType === 'Router' ? (
                 <img
                   src="/images/router-illustration.png"
@@ -299,17 +353,17 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                   className="h-full w-full object-contain"
                 />
               ) : assetType === 'Server' ? (
-                <div className="flex flex-col items-center gap-3 text-blue-600">
+                <div className="flex flex-col items-center gap-3 text-blue-600 dark:text-blue-400">
                   <Server size={76} strokeWidth={1.4} />
                   <span className="text-sm font-semibold">Server Infrastructure</span>
                 </div>
               ) : assetType === 'Switch' ? (
-                <div className="flex flex-col items-center gap-3 text-blue-600">
+                <div className="flex flex-col items-center gap-3 text-blue-600 dark:text-blue-400">
                   <Network size={76} strokeWidth={1.4} />
                   <span className="text-sm font-semibold">Network Switch</span>
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-3 text-blue-600">
+                <div className="flex flex-col items-center gap-3 text-blue-600 dark:text-blue-400">
                   <Boxes size={76} strokeWidth={1.4} />
                   <span className="text-sm font-semibold">Infrastructure Asset</span>
                 </div>
@@ -317,15 +371,18 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
             </div>
           </section>
 
-          <section className="rounded-xl border border-blue-100 bg-blue-50/70 p-5">
+          {/* Required Fields */}
+          <section className="rounded-xl border border-blue-100 bg-blue-50/70 p-5 dark:border-blue-900 dark:bg-blue-950/50">
             <div className="flex items-center gap-2">
-              <CheckCircle2 size={19} className="text-blue-600" />
-              <h2 className="font-bold text-slate-900">Required Fields</h2>
+              <CheckCircle2 size={19} className="text-blue-600 dark:text-blue-400" />
+              <h2 className="font-bold text-slate-900 dark:text-white">
+                Required Fields
+              </h2>
             </div>
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 text-sm text-[#475569] dark:text-[#dbeafe]">
               The following fields are mandatory:
             </p>
-            <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-slate-700">
+            <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-[#334155] dark:text-[#dbeafe]">
               <li>Asset Name</li>
               <li>Asset Type</li>
               <li>Serial Number</li>
@@ -334,12 +391,13 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
             </ul>
           </section>
 
-          <section className="rounded-xl border border-amber-100 bg-amber-50/70 p-5">
+          {/* Notes */}
+          <section className="rounded-xl border border-amber-100 bg-amber-50/70 p-5 dark:border-amber-900 dark:bg-amber-950/40">
             <div className="flex items-center gap-2">
-              <Lightbulb size={19} className="text-amber-600" />
-              <h2 className="font-bold text-slate-900">Notes</h2>
+              <Lightbulb size={19} className="text-amber-600 dark:text-amber-400" />
+              <h2 className="font-bold text-slate-900 dark:text-white">Notes</h2>
             </div>
-            <ul className="mt-3 list-inside list-disc space-y-2 text-sm leading-5 text-slate-700">
+            <ul className="mt-3 list-inside list-disc space-y-2 text-sm leading-5 text-[#44403c] dark:text-[#fef3c7]">
               <li>Use a unique serial number for each asset.</li>
               <li>Set the initial status based on the current condition.</li>
               <li>Location can be a data center, building or floor.</li>

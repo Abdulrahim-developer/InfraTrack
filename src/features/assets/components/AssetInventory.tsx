@@ -1,13 +1,28 @@
-import { useMemo, useState } from 'react'
-import { Archive, Boxes, Search, UserCheck, Wrench, Trash2, Plus } from 'lucide-react'
+import { useMemo, useState, type FormEvent } from 'react'
+import {
+  Archive,
+  Boxes,
+  CheckCircle2,
+  ClipboardList,
+  Search,
+  Trash2,
+  UserCheck,
+  Wrench,
+  X,
+} from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
 import type { AppRole } from '#/features/navigation/navigation.config'
 import {
-  assetInventory,
+  currentMockTechnicianId,
+  currentMockUserId,
   type AssetStatus,
   type AssetType,
 } from '#/features/dashboard/data/dashboard.mock'
+import {
+  useAppData,
+  type AppAssignment,
+} from '#/features/dashboard/context/AppDataContext'
 
 interface AssetInventoryProps {
   role: AppRole
@@ -21,10 +36,35 @@ const statusStyles: Record<AssetStatus, string> = {
 }
 
 const assetTypes: AssetType[] = ['Router', 'Server', 'Switch']
-
 const assetStatuses: AssetStatus[] = ['Active', 'Maintenance', 'In Storage', 'Retired']
 
+function getAssignedTo(assetId: string, assignments: AppAssignment[]) {
+  const currentAssignment = assignments.find(
+    (assignment) => assignment.assetId === assetId && assignment.returnedAt === null,
+  )
+
+  if (!currentAssignment) return 'Unassigned'
+
+  if (currentAssignment.assignedToDepartment) {
+    return currentAssignment.assignedToDepartment
+  }
+
+  if (currentAssignment.assignedToUserId === currentMockUserId) {
+    return 'Rahim'
+  }
+
+  if (currentAssignment.assignedToUserId === currentMockTechnicianId) {
+    return 'Karthick'
+  }
+
+  return 'Assigned User'
+}
+
 export default function AssetInventory({ role }: AssetInventoryProps) {
+  const { assets, setAssets, assignments } = useAppData()
+
+  const canManageAssets = role === 'Administrator' || role === 'Asset Manager'
+
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('All Types')
   const [statusFilter, setStatusFilter] = useState('All Status')
@@ -32,27 +72,36 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
 
+  const [editingAssetId, setEditingAssetId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editType, setEditType] = useState<AssetType>('Router')
+  const [editSerialNumber, setEditSerialNumber] = useState('')
+  const [editLocation, setEditLocation] = useState('')
+  const [editStatus, setEditStatus] = useState<AssetStatus>('Active')
+  const [formError, setFormError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
+  const [retiringAssetId, setRetiringAssetId] = useState<string | null>(null)
+
   const locations = useMemo(
-    () => [...new Set(assetInventory.map((asset) => asset.location))].sort(),
-    [],
+    () => [...new Set(assets.map((asset) => asset.location))].sort(),
+    [assets],
   )
 
   const summary = useMemo(
     () => ({
-      total: assetInventory.length,
-      active: assetInventory.filter((asset) => asset.status === 'Active').length,
-      maintenance: assetInventory.filter((asset) => asset.status === 'Maintenance')
-        .length,
-      storage: assetInventory.filter((asset) => asset.status === 'In Storage').length,
-      retired: assetInventory.filter((asset) => asset.status === 'Retired').length,
+      total: assets.length,
+      active: assets.filter((asset) => asset.status === 'Active').length,
+      maintenance: assets.filter((asset) => asset.status === 'Maintenance').length,
+      storage: assets.filter((asset) => asset.status === 'In Storage').length,
+      retired: assets.filter((asset) => asset.status === 'Retired').length,
     }),
-    [],
+    [assets],
   )
 
   const filteredAssets = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
 
-    return assetInventory.filter((asset) => {
+    return assets.filter((asset) => {
       const matchesSearch =
         !normalizedSearch ||
         asset.name.toLowerCase().includes(normalizedSearch) ||
@@ -60,15 +109,13 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
         asset.serialNumber.toLowerCase().includes(normalizedSearch)
 
       const matchesType = typeFilter === 'All Types' || asset.type === typeFilter
-
       const matchesStatus = statusFilter === 'All Status' || asset.status === statusFilter
-
       const matchesLocation =
         locationFilter === 'All Locations' || asset.location === locationFilter
 
       return matchesSearch && matchesType && matchesStatus && matchesLocation
     })
-  }, [search, typeFilter, statusFilter, locationFilter])
+  }, [assets, search, typeFilter, statusFilter, locationFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredAssets.length / pageSize))
   const safeCurrentPage = Math.min(currentPage, totalPages)
@@ -78,8 +125,6 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
     safeCurrentPage * pageSize,
   )
 
-  const canManageAssets = role === 'Administrator' || role === 'Asset Manager'
-
   function clearFilters() {
     setSearch('')
     setTypeFilter('All Types')
@@ -88,29 +133,67 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
     setCurrentPage(1)
   }
 
-  function updateSearch(value: string) {
-    setSearch(value)
-    setCurrentPage(1)
+  function openEditModal(assetId: string) {
+    const asset = assets.find((item) => item.id === assetId)
+    if (!asset) return
+
+    setEditingAssetId(asset.id)
+    setEditName(asset.name)
+    setEditType(asset.type)
+    setEditSerialNumber(asset.serialNumber)
+    setEditLocation(asset.location)
+    setEditStatus(asset.status)
+    setFormError('')
+    setSuccessMessage('')
   }
 
-  function updateType(value: string) {
-    setTypeFilter(value)
-    setCurrentPage(1)
+  function closeEditModal() {
+    setEditingAssetId(null)
+    setFormError('')
   }
 
-  function updateStatus(value: string) {
-    setStatusFilter(value)
-    setCurrentPage(1)
+  function handleEditAsset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!canManageAssets || !editingAssetId) return
+
+    if (!editName.trim() || !editSerialNumber.trim() || !editLocation.trim()) {
+      setFormError('Please complete all required fields.')
+      return
+    }
+
+    setAssets((previousAssets) =>
+      previousAssets.map((asset) =>
+        asset.id === editingAssetId
+          ? {
+              ...asset,
+              name: editName.trim(),
+              type: editType,
+              serialNumber: editSerialNumber.trim(),
+              location: editLocation.trim(),
+              status: editStatus,
+            }
+          : asset,
+      ),
+    )
+
+    closeEditModal()
+    setSuccessMessage('Asset updated successfully.')
   }
 
-  function updateLocation(value: string) {
-    setLocationFilter(value)
-    setCurrentPage(1)
-  }
+  function confirmRetirement() {
+    if (!canManageAssets || !retiringAssetId) return
 
-  function updatePageSize(value: number) {
-    setPageSize(value)
-    setCurrentPage(1)
+    setAssets((previousAssets) =>
+      previousAssets.map((asset) =>
+        asset.id === retiringAssetId
+          ? { ...asset, status: 'Retired' as AssetStatus }
+          : asset,
+      ),
+    )
+
+    setRetiringAssetId(null)
+    setSuccessMessage('Asset retired successfully.')
   }
 
   const summaryCards = [
@@ -154,7 +237,7 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
             Asset Inventory
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            View, search and review registered infrastructure assets.
+            View, search and manage registered infrastructure assets.
           </p>
         </div>
 
@@ -163,13 +246,30 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
             to="/assets/new"
             className="inline-flex w-fit items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold !text-white shadow-sm transition hover:bg-blue-700"
           >
-            <Plus size={18} />
+            <span className="text-lg leading-none">+</span>
             Register New Asset
           </Link>
         )}
       </section>
 
-      {/* Asset summary */}
+      {successMessage && (
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+        >
+          <CheckCircle2 size={18} />
+          {successMessage}
+          <button
+            type="button"
+            onClick={() => setSuccessMessage('')}
+            className="ml-auto rounded p-1 hover:bg-emerald-100"
+            aria-label="Dismiss message"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <section
         aria-label="Asset inventory statistics"
         className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5"
@@ -187,7 +287,6 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
               >
                 <Icon size={21} aria-hidden="true" />
               </div>
-
               <div className="min-w-0">
                 <p className="truncate text-sm text-slate-500">{card.label}</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
@@ -199,7 +298,6 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
         })}
       </section>
 
-      {/* Search and filters */}
       <section
         aria-label="Search and filter assets"
         className="grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 xl:grid-cols-4"
@@ -209,11 +307,13 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
           <Search
             size={18}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            aria-hidden="true"
           />
           <input
             value={search}
-            onChange={(event) => updateSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setCurrentPage(1)
+            }}
             placeholder="Search by ID, name or serial number..."
             className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
@@ -223,14 +323,15 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
           <span className="sr-only">Filter by asset type</span>
           <select
             value={typeFilter}
-            onChange={(event) => updateType(event.target.value)}
+            onChange={(event) => {
+              setTypeFilter(event.target.value)
+              setCurrentPage(1)
+            }}
             className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option>All Types</option>
             {assetTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
+              <option key={type}>{type}</option>
             ))}
           </select>
         </label>
@@ -239,14 +340,15 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
           <span className="sr-only">Filter by status</span>
           <select
             value={statusFilter}
-            onChange={(event) => updateStatus(event.target.value)}
+            onChange={(event) => {
+              setStatusFilter(event.target.value)
+              setCurrentPage(1)
+            }}
             className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option>All Status</option>
             {assetStatuses.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
+              <option key={status}>{status}</option>
             ))}
           </select>
         </label>
@@ -255,14 +357,15 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
           <span className="sr-only">Filter by location</span>
           <select
             value={locationFilter}
-            onChange={(event) => updateLocation(event.target.value)}
+            onChange={(event) => {
+              setLocationFilter(event.target.value)
+              setCurrentPage(1)
+            }}
             className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option>All Locations</option>
             {locations.map((location) => (
-              <option key={location} value={location}>
-                {location}
-              </option>
+              <option key={location}>{location}</option>
             ))}
           </select>
         </label>
@@ -276,7 +379,6 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
         </button>
       </section>
 
-      {/* Inventory table */}
       <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-4">
           <div>
@@ -285,7 +387,6 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
               Current registered infrastructure inventory
             </p>
           </div>
-
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
             {filteredAssets.length} assets
           </span>
@@ -293,7 +394,7 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
 
         {paginatedAssets.length === 0 ? (
           <div className="px-4 py-12 text-center">
-            <Boxes size={32} className="mx-auto text-slate-300" aria-hidden="true" />
+            <Boxes size={32} className="mx-auto text-slate-300" />
             <p className="mt-3 font-medium text-slate-700">No assets found</p>
             <p className="mt-1 text-sm text-slate-500">
               Try changing your search or filter criteria.
@@ -301,7 +402,6 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
           </div>
         ) : (
           <>
-            {/* Mobile asset cards */}
             <div className="divide-y divide-slate-100 md:hidden">
               {paginatedAssets.map((asset) => (
                 <article key={asset.id} className="space-y-3 p-4">
@@ -315,7 +415,6 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
                         {asset.type} · {asset.serialNumber}
                       </p>
                     </div>
-
                     <span
                       className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${statusStyles[asset.status]}`}
                     >
@@ -324,29 +423,53 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="min-w-0">
+                    <div>
                       <p className="text-xs text-slate-400">Location</p>
                       <p className="mt-1 break-words text-slate-600">{asset.location}</p>
                     </div>
-
-                    <div className="min-w-0">
+                    <div>
                       <p className="text-xs text-slate-400">Assigned To</p>
                       <p className="mt-1 text-slate-600">
-                        {asset.assignedTo ?? 'Unassigned'}
+                        {getAssignedTo(asset.id, assignments)}
                       </p>
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-400">
-                    {canManageAssets ? 'Management access' : 'Read-only access'}
-                  </p>
+                  <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-3 text-xs">
+                    <Link
+                      to="/assets/$assetId"
+                      params={{ assetId: asset.id }}
+                      className="font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      View
+                    </Link>
+                    {canManageAssets && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(asset.id)}
+                          className="font-medium text-slate-600 hover:text-blue-600"
+                        >
+                          Edit
+                        </button>
+                        {asset.status !== 'Retired' && (
+                          <button
+                            type="button"
+                            onClick={() => setRetiringAssetId(asset.id)}
+                            className="font-medium text-red-600 hover:text-red-700"
+                          >
+                            Retire
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </article>
               ))}
             </div>
 
-            {/* Desktop and tablet table */}
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[1000px] text-left text-sm">
+              <table className="w-full min-w-[1150px] text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-3 font-medium">#</th>
@@ -357,31 +480,24 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
                     <th className="px-4 py-3 font-medium">Location</th>
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Assigned To</th>
-                    <th className="px-4 py-3 font-medium">Access</th>
+                    <th className="px-4 py-3 font-medium">Actions</th>
                   </tr>
                 </thead>
-
                 <tbody className="divide-y divide-slate-100">
                   {paginatedAssets.map((asset, index) => (
                     <tr key={asset.id} className="transition hover:bg-slate-50/70">
                       <td className="px-4 py-4 text-slate-400">
                         {(safeCurrentPage - 1) * pageSize + index + 1}
                       </td>
-
                       <td className="px-4 py-4 font-medium text-blue-600">
                         {asset.id.slice(0, 8).toUpperCase()}
                       </td>
-
                       <td className="px-4 py-4 font-medium text-slate-900">
                         {asset.name}
                       </td>
-
                       <td className="px-4 py-4 text-slate-600">{asset.type}</td>
-
                       <td className="px-4 py-4 text-slate-600">{asset.serialNumber}</td>
-
                       <td className="px-4 py-4 text-slate-600">{asset.location}</td>
-
                       <td className="px-4 py-4">
                         <span
                           className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${statusStyles[asset.status]}`}
@@ -389,15 +505,55 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
                           {asset.status}
                         </span>
                       </td>
-
                       <td className="px-4 py-4 text-slate-600">
-                        {asset.assignedTo ?? 'Unassigned'}
+                        {getAssignedTo(asset.id, assignments)}
                       </td>
-
                       <td className="px-4 py-4">
-                        <span className="whitespace-nowrap text-xs text-slate-500">
-                          {canManageAssets ? 'Management' : 'Read only'}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <Link
+                            to="/assets/$assetId"
+                            params={{ assetId: asset.id }}
+                            className="font-medium text-blue-600 hover:text-blue-800"
+                          >
+                            View
+                          </Link>
+                          {canManageAssets && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(asset.id)}
+                                className="font-medium text-slate-600 hover:text-blue-600"
+                              >
+                                Edit
+                              </button>
+                              {asset.status !== 'Retired' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setRetiringAssetId(asset.id)}
+                                  className="font-medium text-red-600 hover:text-red-700"
+                                >
+                                  Retire
+                                </button>
+                              )}
+                            </>
+                          )}
+                          <Link
+                            to="/assignments"
+                            search={{ assetId: asset.id }}
+                            className="text-slate-500 hover:text-blue-600"
+                            title="View assignments"
+                          >
+                            <ClipboardList size={16} />
+                          </Link>
+                          <Link
+                            to="/maintenance"
+                            search={{ assetId: asset.id }}
+                            className="text-slate-500 hover:text-blue-600"
+                            title="View maintenance"
+                          >
+                            <Wrench size={16} />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -407,7 +563,6 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
           </>
         )}
 
-        {/* Pagination */}
         <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
             Showing{' '}
@@ -415,40 +570,39 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
             {Math.min(safeCurrentPage * pageSize, filteredAssets.length)} of{' '}
             {filteredAssets.length} assets
           </p>
-
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-xs text-slate-500">
               Rows per page
               <select
                 value={pageSize}
-                onChange={(event) => updatePageSize(Number(event.target.value))}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-blue-500"
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value))
+                  setCurrentPage(1)
+                }}
+                className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
                 <option value={20}>20</option>
               </select>
             </label>
-
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 disabled={safeCurrentPage <= 1}
                 onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 disabled:opacity-40"
               >
                 Previous
               </button>
-
               <span className="min-w-16 text-center text-xs text-slate-500">
                 Page {safeCurrentPage} of {totalPages}
               </span>
-
               <button
                 type="button"
                 disabled={safeCurrentPage >= totalPages}
                 onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 disabled:opacity-40"
               >
                 Next
               </button>
@@ -456,6 +610,195 @@ export default function AssetInventory({ role }: AssetInventoryProps) {
           </div>
         </div>
       </section>
+
+      {editingAssetId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeEditModal()
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-asset-title"
+            className="my-auto w-full max-w-lg rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 p-5">
+              <div>
+                <h2 id="edit-asset-title" className="text-xl font-bold text-slate-900">
+                  Edit Asset
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Update the asset information.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                aria-label="Close edit form"
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditAsset} className="space-y-4 p-5">
+              <div>
+                <label
+                  htmlFor="edit-asset-name"
+                  className="mb-1 block text-sm font-medium text-slate-700"
+                >
+                  Asset Name
+                </label>
+                <input
+                  id="edit-asset-name"
+                  value={editName}
+                  onChange={(event) => setEditName(event.target.value)}
+                  maxLength={150}
+                  required
+                  className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="edit-asset-type"
+                  className="mb-1 block text-sm font-medium text-slate-700"
+                >
+                  Asset Type
+                </label>
+                <select
+                  id="edit-asset-type"
+                  value={editType}
+                  onChange={(event) => setEditType(event.target.value as AssetType)}
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                >
+                  {assetTypes.map((type) => (
+                    <option key={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="edit-asset-serial"
+                  className="mb-1 block text-sm font-medium text-slate-700"
+                >
+                  Serial Number
+                </label>
+                <input
+                  id="edit-asset-serial"
+                  value={editSerialNumber}
+                  onChange={(event) => setEditSerialNumber(event.target.value)}
+                  maxLength={100}
+                  required
+                  className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="edit-asset-location"
+                  className="mb-1 block text-sm font-medium text-slate-700"
+                >
+                  Location
+                </label>
+                <input
+                  id="edit-asset-location"
+                  value={editLocation}
+                  onChange={(event) => setEditLocation(event.target.value)}
+                  maxLength={200}
+                  required
+                  className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="edit-asset-status"
+                  className="mb-1 block text-sm font-medium text-slate-700"
+                >
+                  Status
+                </label>
+                <select
+                  id="edit-asset-status"
+                  value={editStatus}
+                  onChange={(event) => setEditStatus(event.target.value as AssetStatus)}
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                >
+                  {assetStatuses.map((status) => (
+                    <option key={status}>{status}</option>
+                  ))}
+                </select>
+              </div>
+
+              {formError && (
+                <p
+                  role="alert"
+                  className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
+                >
+                  {formError}
+                </p>
+              )}
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {retiringAssetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="retire-asset-title"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <div className="flex size-11 items-center justify-center rounded-full bg-red-50 text-red-600">
+              <Archive size={22} />
+            </div>
+            <h2 id="retire-asset-title" className="mt-4 text-lg font-bold text-slate-900">
+              Retire this asset?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              The asset will be marked as Retired. It will remain in the inventory and its
+              existing assignment and maintenance history will be preserved.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setRetiringAssetId(null)}
+                className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRetirement}
+                className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Confirm Retirement
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   )
 }

@@ -1,5 +1,8 @@
+import { useMemo } from 'react'
 import { CalendarDays, ClipboardList } from 'lucide-react'
-import { myMaintenanceRecords } from '../../data/dashboard.mock'
+
+import { currentMockTechnicianId } from '../../data/dashboard.mock'
+import { useAppData } from '../../context/AppDataContext'
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('en-IN', {
@@ -10,6 +13,40 @@ function formatDate(value: string) {
 }
 
 export default function RecentMaintenanceRecords() {
+  const { assets, assignments, maintenanceRecords } = useAppData()
+
+  const myMaintenanceRecords = useMemo(() => {
+    const myAssignedAssetIds = new Set(
+      assignments
+        .filter(
+          (assignment) =>
+            assignment.assignedToUserId === currentMockTechnicianId &&
+            assignment.returnedAt === null,
+        )
+        .map((assignment) => assignment.assetId),
+    )
+
+    return maintenanceRecords
+      .filter(
+        (record) =>
+          record.performedBy === currentMockTechnicianId ||
+          myAssignedAssetIds.has(record.assetId),
+      )
+      .flatMap((record) => {
+        const asset = assets.find((item) => item.id === record.assetId)
+
+        if (!asset) return []
+
+        return [
+          {
+            ...record,
+            assetName: asset.name,
+            assetType: asset.type,
+          },
+        ]
+      })
+  }, [assignments, maintenanceRecords, assets])
+
   return (
     <section
       aria-labelledby="recent-maintenance-heading"
@@ -24,7 +61,7 @@ export default function RecentMaintenanceRecords() {
             Recent Maintenance Records
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Maintenance activities performed by you
+            Maintenance activities performed by you or recorded for your assigned assets
           </p>
         </div>
 
@@ -44,7 +81,7 @@ export default function RecentMaintenanceRecords() {
             No maintenance records found
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            Your completed maintenance activities will appear here.
+            Maintenance activities related to your assigned assets will appear here.
           </p>
         </div>
       ) : (
@@ -129,7 +166,8 @@ export default function RecentMaintenanceRecords() {
 
       <div className="mt-4 border-t border-slate-100 pt-4">
         <p className="text-xs text-slate-500">
-          Showing completed maintenance records performed by your account.
+          Showing maintenance records performed by you or related to your currently
+          assigned assets.
         </p>
       </div>
     </section>

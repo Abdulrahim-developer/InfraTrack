@@ -14,7 +14,11 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppAssetsRouteImport } from './routes/_app.assets'
 import { Route as AppAssignmentsRouteImport } from './routes/_app.assignments'
+import { Route as AppAuditLogsRouteImport } from './routes/_app.audit-logs'
 import { Route as AppMaintenanceRouteImport } from './routes/_app.maintenance'
+import { Route as AppMyAssetsRouteImport } from './routes/_app.my-assets'
+import { Route as AppProfileRouteImport } from './routes/_app.profile'
+import { Route as AppReportsRouteImport } from './routes/_app.reports'
 import { Route as AppUsersRouteImport } from './routes/_app.users'
 import { Route as AppAssetsIndexRouteImport } from './routes/_app.assets.index'
 import { Route as AppAssetsAssetIdRouteImport } from './routes/_app.assets.$assetId'
@@ -44,9 +48,29 @@ const AppAssignmentsRoute = AppAssignmentsRouteImport.update({
   path: '/assignments',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAuditLogsRoute = AppAuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMaintenanceRoute = AppMaintenanceRouteImport.update({
   id: '/maintenance',
   path: '/maintenance',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMyAssetsRoute = AppMyAssetsRouteImport.update({
+  id: '/my-assets',
+  path: '/my-assets',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProfileRoute = AppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AppRoute,
 } as any)
 const AppUsersRoute = AppUsersRouteImport.update({
@@ -75,7 +99,11 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/assets': typeof AppAssetsRouteWithChildren
   '/assignments': typeof AppAssignmentsRoute
+  '/audit-logs': typeof AppAuditLogsRoute
   '/maintenance': typeof AppMaintenanceRoute
+  '/my-assets': typeof AppMyAssetsRoute
+  '/profile': typeof AppProfileRoute
+  '/reports': typeof AppReportsRoute
   '/users': typeof AppUsersRoute
   '/assets/$assetId': typeof AppAssetsAssetIdRoute
   '/assets/new': typeof AppAssetsNewRoute
@@ -84,7 +112,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/assignments': typeof AppAssignmentsRoute
+  '/audit-logs': typeof AppAuditLogsRoute
   '/maintenance': typeof AppMaintenanceRoute
+  '/my-assets': typeof AppMyAssetsRoute
+  '/profile': typeof AppProfileRoute
+  '/reports': typeof AppReportsRoute
   '/users': typeof AppUsersRoute
   '/': typeof AppIndexRoute
   '/assets/$assetId': typeof AppAssetsAssetIdRoute
@@ -97,7 +129,11 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/_app/assets': typeof AppAssetsRouteWithChildren
   '/_app/assignments': typeof AppAssignmentsRoute
+  '/_app/audit-logs': typeof AppAuditLogsRoute
   '/_app/maintenance': typeof AppMaintenanceRoute
+  '/_app/my-assets': typeof AppMyAssetsRoute
+  '/_app/profile': typeof AppProfileRoute
+  '/_app/reports': typeof AppReportsRoute
   '/_app/users': typeof AppUsersRoute
   '/_app/': typeof AppIndexRoute
   '/_app/assets/$assetId': typeof AppAssetsAssetIdRoute
@@ -111,7 +147,11 @@ export interface FileRouteTypes {
     | '/about'
     | '/assets'
     | '/assignments'
+    | '/audit-logs'
     | '/maintenance'
+    | '/my-assets'
+    | '/profile'
+    | '/reports'
     | '/users'
     | '/assets/$assetId'
     | '/assets/new'
@@ -120,7 +160,11 @@ export interface FileRouteTypes {
   to:
     | '/about'
     | '/assignments'
+    | '/audit-logs'
     | '/maintenance'
+    | '/my-assets'
+    | '/profile'
+    | '/reports'
     | '/users'
     | '/'
     | '/assets/$assetId'
@@ -132,7 +176,11 @@ export interface FileRouteTypes {
     | '/about'
     | '/_app/assets'
     | '/_app/assignments'
+    | '/_app/audit-logs'
     | '/_app/maintenance'
+    | '/_app/my-assets'
+    | '/_app/profile'
+    | '/_app/reports'
     | '/_app/users'
     | '/_app/'
     | '/_app/assets/$assetId'
@@ -182,11 +230,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAssignmentsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/audit-logs': {
+      id: '/_app/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/audit-logs'
+      preLoaderRoute: typeof AppAuditLogsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/maintenance': {
       id: '/_app/maintenance'
       path: '/maintenance'
       fullPath: '/maintenance'
       preLoaderRoute: typeof AppMaintenanceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/my-assets': {
+      id: '/_app/my-assets'
+      path: '/my-assets'
+      fullPath: '/my-assets'
+      preLoaderRoute: typeof AppMyAssetsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/profile': {
+      id: '/_app/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports': {
+      id: '/_app/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/users': {
@@ -239,7 +315,11 @@ const AppAssetsRouteWithChildren = AppAssetsRoute._addFileChildren(
 interface AppRouteChildren {
   AppAssetsRoute: typeof AppAssetsRouteWithChildren
   AppAssignmentsRoute: typeof AppAssignmentsRoute
+  AppAuditLogsRoute: typeof AppAuditLogsRoute
   AppMaintenanceRoute: typeof AppMaintenanceRoute
+  AppMyAssetsRoute: typeof AppMyAssetsRoute
+  AppProfileRoute: typeof AppProfileRoute
+  AppReportsRoute: typeof AppReportsRoute
   AppUsersRoute: typeof AppUsersRoute
   AppIndexRoute: typeof AppIndexRoute
 }
@@ -247,7 +327,11 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAssetsRoute: AppAssetsRouteWithChildren,
   AppAssignmentsRoute: AppAssignmentsRoute,
+  AppAuditLogsRoute: AppAuditLogsRoute,
   AppMaintenanceRoute: AppMaintenanceRoute,
+  AppMyAssetsRoute: AppMyAssetsRoute,
+  AppProfileRoute: AppProfileRoute,
+  AppReportsRoute: AppReportsRoute,
   AppUsersRoute: AppUsersRoute,
   AppIndexRoute: AppIndexRoute,
 }

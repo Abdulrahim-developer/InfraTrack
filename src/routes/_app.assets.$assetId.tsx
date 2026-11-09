@@ -21,13 +21,11 @@ import {
 import { z } from 'zod'
 
 import {
-  assetInventory,
-  assignments,
-  maintenanceRecords,
   currentMockUserId,
   currentMockTechnicianId,
   type AssetStatus,
 } from '#/features/dashboard/data/dashboard.mock'
+import { useAppData } from '#/features/dashboard/context/AppDataContext'
 
 export const Route = createFileRoute('/_app/assets/$assetId')({
   component: AssetDetailsPage,
@@ -69,9 +67,12 @@ function AssetDetailsPage() {
   const { assetId } = Route.useParams()
   const [activeTab, setActiveTab] = useState<DetailTab>('Overview')
 
+  // Read all asset-related data from the shared application state.
+  const { assets, assignments, maintenanceRecords } = useAppData()
+
   const normalizedId = assetId.toLowerCase()
 
-  const asset = assetInventory.find(
+  const asset = assets.find(
     (item) =>
       item.id.toLowerCase() === normalizedId ||
       item.id.slice(0, 8).toLowerCase() === normalizedId,

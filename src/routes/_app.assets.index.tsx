@@ -1,12 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import AssetInventory from '#/features/assets/components/AssetInventory'
+import { useRolePreview } from '#/features/navigation/RolePreviewContext'
 
 export const Route = createFileRoute('/_app/assets/')({
   component: AssetInventoryPage,
 })
 
 function AssetInventoryPage() {
-  // Temporary role for UI development.
-  // Later, this will come from the authenticated session.
-  return <AssetInventory role="Administrator" />
+  const { role } = useRolePreview()
+
+  return <AssetInventory role={role} />
 }

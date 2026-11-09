@@ -5,20 +5,21 @@ import {
   CheckCircle2,
   ClipboardList,
   Search,
+  RotateCcw,
   UserRound,
   X,
 } from 'lucide-react'
 
 import {
-  assignments,
-  assetInventory,
   currentMockTechnicianId,
   currentMockUserId,
   type AssetType,
 } from '#/features/dashboard/data/dashboard.mock'
+import { useAppData } from '#/features/dashboard/context/AppDataContext'
 
 type AssignmentStatus = 'Assigned' | 'Returned'
 type RecipientType = 'user' | 'department'
+type AppRole = 'Administrator' | 'Asset Manager' | 'Technician' | 'Viewer/Auditor'
 
 interface AssignmentRecord {
   id: string
@@ -33,22 +34,28 @@ interface MockUser {
   id: string
   name: string
   email: string
+  role: AppRole
+}
+
+interface AssignmentManagementProps {
+  initialAssetId?: string
+  initialAction?: 'view' | 'create'
 }
 
 const assetTypes: AssetType[] = ['Router', 'Server', 'Switch']
 
-// Temporary users for frontend development.
-// Replace these with records retrieved from the users table later.
 const mockUsers: MockUser[] = [
   {
     id: currentMockUserId,
     name: 'Rahim',
     email: 'rahim@example.test',
+    role: 'Asset Manager',
   },
   {
     id: currentMockTechnicianId,
     name: 'Karthick',
     email: 'karthick@example.test',
+    role: 'Technician',
   },
 ]
 
@@ -92,13 +99,11 @@ function getNextAssignmentId(records: AssignmentRecord[]) {
   return `ASN-${String(highestNumber + 1).padStart(4, '0')}`
 }
 
-export default function AssignmentManagement() {
-  const [assignmentRecords, setAssignmentRecords] = useState<AssignmentRecord[]>(() =>
-    assignments.map((assignment) => ({
-      ...assignment,
-      assignedToDepartment: null,
-    })),
-  )
+export default function AssignmentManagement({
+  initialAssetId,
+  initialAction,
+}: AssignmentManagementProps) {
+  const { assets, assignments: assignmentRecords, setAssignments } = useAppData()
 
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('All Types')
@@ -107,25 +112,29 @@ export default function AssignmentManagement() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
 
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(
+    Boolean(initialAssetId && initialAction === 'create'),
+  )
   const [recipientType, setRecipientType] = useState<RecipientType>('user')
-  const [selectedAssetId, setSelectedAssetId] = useState('')
+  const [selectedAssetId, setSelectedAssetId] = useState(initialAssetId ?? '')
   const [selectedUserId, setSelectedUserId] = useState('')
+  const [selectedRole, setSelectedRole] = useState<AppRole | ''>('')
+  const [userSearch, setUserSearch] = useState('')
   const [departmentName, setDepartmentName] = useState('')
   const [assignmentDate, setAssignmentDate] = useState(getTodayDate())
   const [formError, setFormError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [assignmentToReturn, setAssignmentToReturn] = useState<string | null>(null)
 
   const assignmentRows = useMemo(
     () =>
       assignmentRecords.flatMap((assignment) => {
-        const asset = assetInventory.find((item) => item.id === assignment.assetId)
+        const asset = assets.find((item) => item.id === assignment.assetId)
 
         if (!asset) return []
 
         const assignedUser = getUserName(assignment.assignedToUserId)
         const assignedEmail = getUserEmail(assignment.assignedToUserId)
-
         const status: AssignmentStatus = assignment.returnedAt ? 'Returned' : 'Assigned'
 
         return [
@@ -141,7 +150,7 @@ export default function AssignmentManagement() {
           },
         ]
       }),
-    [assignmentRecords],
+    [assignmentRecords, assets],
   )
 
   const summary = useMemo(() => {
@@ -154,7 +163,6 @@ export default function AssignmentManagement() {
       returned: assignmentRows.filter((item) => item.returnedAt).length,
       thisMonth: assignmentRows.filter((item) => {
         const date = new Date(item.assignedAt)
-
         return date.getMonth() === currentMonth && date.getFullYear() === currentYear
       }).length,
     }
@@ -164,6 +172,9 @@ export default function AssignmentManagement() {
     const query = search.trim().toLowerCase()
 
     return assignmentRows.filter((item) => {
+      const matchesAsset =
+        initialAction !== 'view' || !initialAssetId || item.assetId === initialAssetId
+
       const matchesSearch =
         !query ||
         item.id.toLowerCase().includes(query) ||
@@ -175,17 +186,22 @@ export default function AssignmentManagement() {
         (item.assignedEmail ?? '').toLowerCase().includes(query)
 
       const matchesType = typeFilter === 'All Types' || item.assetType === typeFilter
-
       const matchesStatus = statusFilter === 'All Status' || item.status === statusFilter
-
       const matchesUser = userFilter === 'All Users' || item.assignedUser === userFilter
 
-      return matchesSearch && matchesType && matchesStatus && matchesUser
+      return matchesAsset && matchesSearch && matchesType && matchesStatus && matchesUser
     })
-  }, [assignmentRows, search, typeFilter, statusFilter, userFilter])
+  }, [
+    assignmentRows,
+    initialAction,
+    initialAssetId,
+    search,
+    typeFilter,
+    statusFilter,
+    userFilter,
+  ])
 
   const totalPages = Math.max(1, Math.ceil(filteredAssignments.length / pageSize))
-
   const safeCurrentPage = Math.min(currentPage, totalPages)
 
   const paginatedAssignments = filteredAssignments.slice(
@@ -194,8 +210,20 @@ export default function AssignmentManagement() {
   )
 
   const users = [...new Set(assignmentRows.map((item) => item.assignedUser))]
+  const availableAssets = assets.filter((asset) => asset.status === 'Active')
+  const availableRoles = [...new Set(mockUsers.map((user) => user.role))]
 
-  const availableAssets = assetInventory.filter((asset) => asset.status === 'Active')
+  const filteredUsers = mockUsers.filter((user) => {
+    const matchesRole = user.role === selectedRole
+    const query = userSearch.trim().toLowerCase()
+
+    const matchesSearch =
+      !query ||
+      user.name.toLowerCase().includes(query) ||
+      user.email.toLowerCase().includes(query)
+
+    return matchesRole && matchesSearch
+  })
 
   function clearFilters() {
     setSearch('')
@@ -207,8 +235,10 @@ export default function AssignmentManagement() {
 
   function resetForm() {
     setRecipientType('user')
-    setSelectedAssetId('')
+    setSelectedAssetId(initialAssetId ?? '')
     setSelectedUserId('')
+    setSelectedRole('')
+    setUserSearch('')
     setDepartmentName('')
     setAssignmentDate(getTodayDate())
     setFormError('')
@@ -225,6 +255,31 @@ export default function AssignmentManagement() {
     setFormError('')
   }
 
+  function handleReturnAssignment() {
+    if (!assignmentToReturn) return
+
+    const assignmentId = assignmentToReturn
+
+    const assignment = assignmentRecords.find((record) => record.id === assignmentId)
+
+    if (!assignment || assignment.returnedAt) {
+      setAssignmentToReturn(null)
+      return
+    }
+
+    const returnedAt = new Date().toISOString()
+
+    setAssignments((previousRecords) =>
+      previousRecords.map((record) =>
+        record.id === assignmentId && !record.returnedAt
+          ? { ...record, returnedAt }
+          : record,
+      ),
+    )
+
+    setSuccessMessage(`Assignment ${assignmentId} marked as returned.`)
+    setAssignmentToReturn(null)
+  }
   function handleCreateAssignment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFormError('')
@@ -250,7 +305,7 @@ export default function AssignmentManagement() {
       return
     }
 
-    const selectedAsset = assetInventory.find((asset) => asset.id === selectedAssetId)
+    const selectedAsset = assets.find((asset) => asset.id === selectedAssetId)
 
     if (!selectedAsset || selectedAsset.status !== 'Active') {
       setFormError('Only active assets can be assigned.')
@@ -261,13 +316,9 @@ export default function AssignmentManagement() {
       (record) => record.assetId === selectedAssetId && !record.returnedAt,
     )
 
-    const hasEarlierAssignment = currentAssignment.some(
-      (record) => record.assignedAt.slice(0, 10) > assignmentDate,
-    )
-
-    if (hasEarlierAssignment) {
+    if (currentAssignment.length > 0) {
       setFormError(
-        'The assignment date cannot be earlier than the current assignment date.',
+        'This asset is currently assigned. Return it before creating a new assignment.',
       )
       return
     }
@@ -281,19 +332,7 @@ export default function AssignmentManagement() {
       returnedAt: null,
     }
 
-    setAssignmentRecords((previousRecords) => [
-      ...previousRecords.map((record) => {
-        if (record.assetId === selectedAssetId && !record.returnedAt) {
-          return {
-            ...record,
-            returnedAt: newAssignment.assignedAt,
-          }
-        }
-
-        return record
-      }),
-      newAssignment,
-    ])
+    setAssignments((previousRecords) => [newAssignment, ...previousRecords])
 
     setSuccessMessage(`Assignment ${newAssignment.id} created successfully.`)
 
@@ -331,7 +370,6 @@ export default function AssignmentManagement() {
 
   return (
     <main className="min-w-0 space-y-6">
-      {/* Page heading */}
       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
@@ -353,7 +391,6 @@ export default function AssignmentManagement() {
         </button>
       </section>
 
-      {/* Success message */}
       {successMessage && (
         <div
           role="status"
@@ -372,7 +409,6 @@ export default function AssignmentManagement() {
         </div>
       )}
 
-      {/* Summary cards */}
       <section
         aria-label="Assignment statistics"
         className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
@@ -390,7 +426,6 @@ export default function AssignmentManagement() {
               >
                 <Icon size={23} />
               </div>
-
               <div className="min-w-0">
                 <p className="text-sm text-slate-500">{card.label}</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
@@ -402,7 +437,6 @@ export default function AssignmentManagement() {
         })}
       </section>
 
-      {/* Search and filters */}
       <section
         aria-label="Search and filter assignments"
         className="grid min-w-0 grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 xl:grid-cols-4"
@@ -432,7 +466,7 @@ export default function AssignmentManagement() {
               setTypeFilter(event.target.value)
               setCurrentPage(1)
             }}
-            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500"
+            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option>All Types</option>
             {assetTypes.map((type) => (
@@ -449,7 +483,7 @@ export default function AssignmentManagement() {
               setStatusFilter(event.target.value)
               setCurrentPage(1)
             }}
-            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500"
+            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option>All Status</option>
             <option value="Assigned">Assigned</option>
@@ -465,7 +499,7 @@ export default function AssignmentManagement() {
               setUserFilter(event.target.value)
               setCurrentPage(1)
             }}
-            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500"
+            className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option>All Users</option>
             {users.map((user) => (
@@ -483,7 +517,6 @@ export default function AssignmentManagement() {
         </button>
       </section>
 
-      {/* Assignment table */}
       <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-4">
           <div>
@@ -492,7 +525,6 @@ export default function AssignmentManagement() {
               Current and historical asset assignments
             </p>
           </div>
-
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
             {filteredAssignments.length} records
           </span>
@@ -508,7 +540,6 @@ export default function AssignmentManagement() {
           </div>
         ) : (
           <>
-            {/* Mobile cards */}
             <div className="divide-y divide-slate-100 md:hidden">
               {paginatedAssignments.map((item) => (
                 <article key={item.id} className="space-y-3 p-4">
@@ -522,7 +553,6 @@ export default function AssignmentManagement() {
                         {item.assetType} · {item.assetShortId}
                       </p>
                     </div>
-
                     <span
                       className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
                         item.status === 'Assigned'
@@ -555,11 +585,20 @@ export default function AssignmentManagement() {
                       <p className="mt-1 text-slate-700">{formatDate(item.returnedAt)}</p>
                     </div>
                   </div>
+                  {!item.returnedAt && (
+                    <button
+                      type="button"
+                      onClick={() => setAssignmentToReturn(item.id)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-50"
+                    >
+                      <RotateCcw size={15} />
+                      Return Asset
+                    </button>
+                  )}
                 </article>
               ))}
             </div>
 
-            {/* Desktop and tablet table */}
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[950px] text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -571,10 +610,9 @@ export default function AssignmentManagement() {
                     <th className="px-4 py-3 font-medium">Assigned To</th>
                     <th className="px-4 py-3 font-medium">Assigned Date</th>
                     <th className="px-4 py-3 font-medium">Return Date</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Status / Action</th>
                   </tr>
                 </thead>
-
                 <tbody className="divide-y divide-slate-100">
                   {paginatedAssignments.map((item, index) => (
                     <tr key={item.id} className="transition hover:bg-slate-50/70">
@@ -623,6 +661,16 @@ export default function AssignmentManagement() {
                           )}
                           {item.status}
                         </span>
+                        {!item.returnedAt && (
+                          <button
+                            type="button"
+                            onClick={() => setAssignmentToReturn(item.id)}
+                            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-200 px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50"
+                          >
+                            <RotateCcw size={13} />
+                            Return
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -632,7 +680,6 @@ export default function AssignmentManagement() {
           </>
         )}
 
-        {/* Pagination */}
         <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">
             Showing{' '}
@@ -667,11 +714,9 @@ export default function AssignmentManagement() {
               >
                 Previous
               </button>
-
               <span className="min-w-16 text-center text-xs text-slate-500">
                 Page {safeCurrentPage} of {totalPages}
               </span>
-
               <button
                 type="button"
                 disabled={safeCurrentPage >= totalPages}
@@ -685,14 +730,11 @@ export default function AssignmentManagement() {
         </div>
       </section>
 
-      {/* New Assignment Modal */}
       {isModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeAssignmentModal()
-            }
+            if (event.target === event.currentTarget) closeAssignmentModal()
           }}
         >
           <section
@@ -713,7 +755,6 @@ export default function AssignmentManagement() {
                   Assign an active asset to a user or department.
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={closeAssignmentModal}
@@ -726,7 +767,6 @@ export default function AssignmentManagement() {
 
             <form onSubmit={handleCreateAssignment}>
               <div className="space-y-5 p-5 sm:p-6">
-                {/* Asset selection */}
                 <div className="space-y-2">
                   <label
                     htmlFor="assignment-asset"
@@ -734,7 +774,6 @@ export default function AssignmentManagement() {
                   >
                     Select Asset <span className="text-red-500">*</span>
                   </label>
-
                   <select
                     id="assignment-asset"
                     value={selectedAssetId}
@@ -749,18 +788,12 @@ export default function AssignmentManagement() {
                       </option>
                     ))}
                   </select>
-
                   {selectedAssetId && (
                     <p className="text-xs text-slate-500">
-                      {assetInventory.find((asset) => asset.id === selectedAssetId)?.type}{' '}
-                      ·{' '}
-                      {
-                        assetInventory.find((asset) => asset.id === selectedAssetId)
-                          ?.location
-                      }
+                      {assets.find((asset) => asset.id === selectedAssetId)?.type} ·{' '}
+                      {assets.find((asset) => asset.id === selectedAssetId)?.location}
                     </p>
                   )}
-
                   {availableAssets.length === 0 && (
                     <p className="text-xs text-amber-600">
                       No active assets are currently available for assignment.
@@ -768,12 +801,10 @@ export default function AssignmentManagement() {
                   )}
                 </div>
 
-                {/* Recipient type */}
                 <fieldset className="space-y-2">
                   <legend className="text-sm font-semibold text-slate-700">
                     Assign To <span className="text-red-500">*</span>
                   </legend>
-
                   <div className="grid grid-cols-2 gap-3">
                     <label
                       className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm transition ${
@@ -795,7 +826,6 @@ export default function AssignmentManagement() {
                       />
                       Individual User
                     </label>
-
                     <label
                       className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm transition ${
                         recipientType === 'department'
@@ -819,34 +849,94 @@ export default function AssignmentManagement() {
                   </div>
                 </fieldset>
 
-                {/* User selection */}
                 {recipientType === 'user' ? (
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="assignment-user"
-                      className="block text-sm font-semibold text-slate-700"
-                    >
-                      Select User <span className="text-red-500">*</span>
-                    </label>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="assignment-role"
+                        className="block text-sm font-semibold text-slate-700"
+                      >
+                        Select Role <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="assignment-role"
+                        value={selectedRole}
+                        onChange={(event) => {
+                          setSelectedRole(event.target.value as AppRole | '')
+                          setSelectedUserId('')
+                          setUserSearch('')
+                          setFormError('')
+                        }}
+                        required
+                        className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      >
+                        <option value="">Choose a role</option>
+                        {availableRoles.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                    <select
-                      id="assignment-user"
-                      value={selectedUserId}
-                      onChange={(event) => setSelectedUserId(event.target.value)}
-                      required
-                      className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                    >
-                      <option value="">Choose a user</option>
-                      {mockUsers.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name} — {user.email}
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="assignment-user-search"
+                        className="block text-sm font-semibold text-slate-700"
+                      >
+                        Search User
+                      </label>
+                      <div className="relative">
+                        <Search
+                          size={17}
+                          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                        />
+                        <input
+                          id="assignment-user-search"
+                          type="search"
+                          value={userSearch}
+                          onChange={(event) => setUserSearch(event.target.value)}
+                          disabled={!selectedRole}
+                          placeholder="Search by name or email..."
+                          className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="assignment-user"
+                        className="block text-sm font-semibold text-slate-700"
+                      >
+                        Select User <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="assignment-user"
+                        value={selectedUserId}
+                        onChange={(event) => setSelectedUserId(event.target.value)}
+                        disabled={!selectedRole || filteredUsers.length === 0}
+                        required
+                        className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+                      >
+                        <option value="">
+                          {!selectedRole ? 'Choose a role first' : 'Choose a user'}
                         </option>
-                      ))}
-                    </select>
-
-                    <p className="text-xs text-slate-400">
-                      The email helps distinguish users who have the same name.
-                    </p>
+                        {filteredUsers.map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.name} — {user.email}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedRole && filteredUsers.length === 0 && (
+                        <p className="text-xs text-amber-600">
+                          No users found for this role and search.
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-400">
+                        Users are filtered by application role. Search using their name or
+                        email.
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -856,7 +946,6 @@ export default function AssignmentManagement() {
                     >
                       Department Name <span className="text-red-500">*</span>
                     </label>
-
                     <input
                       id="assignment-department"
                       type="text"
@@ -871,7 +960,6 @@ export default function AssignmentManagement() {
                   </div>
                 )}
 
-                {/* Assignment date */}
                 <div className="space-y-2">
                   <label
                     htmlFor="assignment-date"
@@ -879,7 +967,6 @@ export default function AssignmentManagement() {
                   >
                     Assignment Date <span className="text-red-500">*</span>
                   </label>
-
                   <input
                     id="assignment-date"
                     type="date"
@@ -908,7 +995,6 @@ export default function AssignmentManagement() {
                 >
                   Cancel
                 </button>
-
                 <button
                   type="submit"
                   disabled={availableAssets.length === 0}
@@ -918,6 +1004,68 @@ export default function AssignmentManagement() {
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {assignmentToReturn && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setAssignmentToReturn(null)
+            }
+          }}
+        >
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="return-dialog-title"
+            aria-describedby="return-dialog-description"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <RotateCcw size={23} />
+              </div>
+
+              <div className="min-w-0">
+                <h2 id="return-dialog-title" className="text-lg font-bold text-slate-900">
+                  Return Asset?
+                </h2>
+
+                <p
+                  id="return-dialog-description"
+                  className="mt-2 text-sm leading-6 text-slate-500"
+                >
+                  Are you sure you want to return this asset? This will close its active
+                  assignment and record the return date.
+                </p>
+
+                <p className="mt-3 text-sm font-semibold text-slate-700">
+                  Assignment ID: {assignmentToReturn}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setAssignmentToReturn(null)}
+                className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleReturnAssignment}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+              >
+                <RotateCcw size={16} />
+                Confirm Return
+              </button>
+            </div>
           </section>
         </div>
       )}
