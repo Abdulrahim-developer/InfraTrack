@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   CalendarDays,
   CheckCircle2,
@@ -9,25 +9,42 @@ import {
   X,
 } from 'lucide-react'
 
-import { currentMockTechnicianId } from '#/features/dashboard/data/dashboard.mock'
-import { useAppData } from '#/features/dashboard/context/AppDataContext'
+import { listAssets } from '#/features/assets/server/list-assets'
+import { listAssignmentUsers } from '#/features/assignments/server/list-assignment-users'
+import { createMaintenanceRecord } from '#/features/maintenance/server/create-maintenance-record'
+import { listMaintenanceRecords } from '#/features/maintenance/server/list-maintenance-records'
 import type { AppRole } from '#/features/navigation/navigation.config'
 
 type MaintenanceType = 'Preventive' | 'Corrective' | 'Inspection' | 'Repair'
 
 interface MaintenanceRecord {
-  id: string
+  maintenanceId: string
   assetId: string
+  assetName: string
+  assetType: string
+  serialNumber: string | null
   performedBy: string
+  performedByName: string
+  performedByEmail: string
   maintenanceType: string
   description: string
   performedAt: string
+}
+
+interface MaintenanceAsset {
+  assetId: string
+  assetName: string
+  assetType: string
+  serialNumber: string | null
+  location: string | null
+  status: string
 }
 
 interface MaintenanceUser {
   id: string
   name: string
   email: string
+  roles: string[]
 }
 
 interface MaintenanceManagementProps {
@@ -35,19 +52,6 @@ interface MaintenanceManagementProps {
   initialAssetId?: string
   initialAction?: 'view' | 'create'
 }
-
-const mockUsers: MaintenanceUser[] = [
-  {
-    id: currentMockTechnicianId,
-    name: 'Karthick',
-    email: 'karthick@example.test',
-  },
-  {
-    id: 'user-technician-02',
-    name: 'Arun',
-    email: 'arun@example.test',
-  },
-]
 
 const maintenanceTypes: MaintenanceType[] = [
   'Preventive',
@@ -75,21 +79,8 @@ function getTodayDate() {
   return `${year}-${month}-${day}`
 }
 
-function getNextRecordId(records: MaintenanceRecord[]) {
-  const highestNumber = records.reduce((highest, record) => {
-    const match = record.id.match(/^MT-(\d+)$/)
-    return match ? Math.max(highest, Number(match[1])) : highest
-  }, 0)
-
-  return `MT-${String(highestNumber + 1).padStart(4, '0')}`
-}
-
-function getPerformerName(userId: string) {
-  return mockUsers.find((user) => user.id === userId)?.name ?? 'Unknown User'
-}
-
-function getPerformerEmail(userId: string) {
-  return mockUsers.find((user) => user.id === userId)?.email ?? ''
+function getRecordDisplayId(maintenanceId: string) {
+  return maintenanceId.slice(0, 8).toUpperCase()
 }
 
 function getTypeStyle(type: string) {
@@ -107,14 +98,17 @@ export default function MaintenanceManagement({
 }: MaintenanceManagementProps) {
   const canCreate =
     role === 'Administrator' || role === 'Asset Manager' || role === 'Technician'
-  const isTechnician = role === 'Technician'
 
-  const {
-    assets,
-    assignments,
-    maintenanceRecords: records,
-    setMaintenanceRecords: setRecords,
-  } = useAppData()
+  const isTechnician = role === 'Technician'
+  const canSelectPerformer = role === 'Administrator' || role === 'Asset Manager'
+
+  const [assets, setAssets] = useState<MaintenanceAsset[]>([])
+  const [records, setRecords] = useState<MaintenanceRecord[]>([])
+  const [technicians, setTechnicians] = useState<MaintenanceUser[]>([])
+
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loadError, setLoadError] = useState('')
 
   const [search, setSearch] = useState('')
   const [assetTypeFilter, setAssetTypeFilter] = useState('All Types')
@@ -129,49 +123,102 @@ export default function MaintenanceManagement({
   const [selectedAssetId, setSelectedAssetId] = useState(initialAssetId ?? '')
   const [selectedType, setSelectedType] = useState<MaintenanceType>('Preventive')
   const [description, setDescription] = useState('')
-  const [performedBy, setPerformedBy] = useState(
-    isTechnician ? currentMockTechnicianId : '',
-  )
+  const [performedBy, setPerformedBy] = useState('')
   const [performedDate, setPerformedDate] = useState(getTodayDate())
   const [formError, setFormError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
-  const rows = useMemo(() => {
-    const technicianAssetIds = isTechnician
-      ? new Set(
-          assignments
-            .filter(
-              (assignment) =>
-                assignment.assignedToUserId === currentMockTechnicianId &&
-                assignment.returnedAt === null,
-            )
-            .map((assignment) => assignment.assetId),
-        )
-      : null
-
-    return records.flatMap((record) => {
-      // Technicians can view history only for their currently assigned assets.
-      if (technicianAssetIds && !technicianAssetIds.has(record.assetId)) {
-        return []
-      }
-
-      const asset = assets.find((item) => item.id === record.assetId)
-
-      if (!asset) return []
-
-      return [
-        {
-          ...record,
-          assetName: asset.name,
-          assetType: asset.type,
-          assetShortId: asset.id.slice(0, 8).toUpperCase(),
-          serialNumber: asset.serialNumber,
-          performerName: getPerformerName(record.performedBy),
-          performerEmail: getPerformerEmail(record.performedBy),
-        },
-      ]
+  async function loadRecords() {
+    const result = await listMaintenanceRecords({
+      data: {},
     })
-  }, [records, isTechnician, assignments, assets])
+
+    setRecords(result.data)
+  }
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadInitialData() {
+      setIsLoading(true)
+      setLoadError('')
+
+      try {
+        const [assetResult, recordResult, userResult] = await Promise.all([
+          listAssets({
+            data: {
+              search: '',
+              type: '',
+              status: '',
+              location: '',
+              page: 1,
+              pageSize: 100,
+            },
+          }),
+          listMaintenanceRecords({
+            data: {},
+          }),
+          canSelectPerformer ? listAssignmentUsers() : Promise.resolve(null),
+        ])
+
+        if (!isMounted) return
+
+        setAssets(
+          assetResult.data.map((asset) => ({
+            assetId: asset.assetId,
+            assetName: asset.assetName,
+            assetType: asset.assetType,
+            serialNumber: asset.serialNumber,
+            location: asset.location,
+            status: asset.status,
+          })),
+        )
+
+        setRecords(recordResult.data)
+
+        if (userResult) {
+          setTechnicians(
+            userResult.data.filter((user) => user.roles.includes('Technician')),
+          )
+        }
+      } catch (error) {
+        if (!isMounted) return
+
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load maintenance information.',
+        )
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadInitialData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [role, canSelectPerformer])
+
+  const assetTypeOptions = useMemo(
+    () => [...new Set(assets.map((asset) => asset.assetType))].sort(),
+    [assets],
+  )
+
+  const rows = useMemo(
+    () =>
+      records.map((record) => ({
+        ...record,
+        assetShortId: record.assetId.slice(0, 8).toUpperCase(),
+        recordDisplayId: getRecordDisplayId(record.maintenanceId),
+        performerName: record.performedByName,
+        performerEmail: record.performedByEmail,
+      })),
+    [records],
+  )
 
   const summary = useMemo(() => {
     const now = new Date()
@@ -213,11 +260,12 @@ export default function MaintenanceManagement({
 
         const matchesSearch =
           !query ||
-          record.id.toLowerCase().includes(query) ||
+          record.maintenanceId.toLowerCase().includes(query) ||
+          record.recordDisplayId.toLowerCase().includes(query) ||
           record.assetName.toLowerCase().includes(query) ||
           record.assetShortId.toLowerCase().includes(query) ||
           record.assetId.toLowerCase().includes(query) ||
-          record.serialNumber.toLowerCase().includes(query) ||
+          (record.serialNumber ?? '').toLowerCase().includes(query) ||
           record.performerName.toLowerCase().includes(query) ||
           record.description.toLowerCase().includes(query)
 
@@ -260,21 +308,11 @@ export default function MaintenanceManagement({
     safeCurrentPage * pageSize,
   )
 
-  const technicianAssignedAssetIds = new Set(
-    assignments
-      .filter(
-        (assignment) =>
-          assignment.assignedToUserId === currentMockTechnicianId &&
-          assignment.returnedAt === null,
-      )
-      .map((assignment) => assignment.assetId),
+  const availableAssets = assets.filter(
+    (asset) => asset.status.toLowerCase() !== 'retired',
   )
 
-  const availableAssets = assets.filter(
-    (asset) =>
-      asset.status !== 'Retired' &&
-      (!isTechnician || technicianAssignedAssetIds.has(asset.id)),
-  )
+  const selectedAsset = assets.find((asset) => asset.assetId === selectedAssetId)
 
   function clearFilters() {
     setSearch('')
@@ -288,7 +326,7 @@ export default function MaintenanceManagement({
     setSelectedAssetId(initialAssetId ?? '')
     setSelectedType('Preventive')
     setDescription('')
-    setPerformedBy(isTechnician ? currentMockTechnicianId : '')
+    setPerformedBy('')
     setPerformedDate(getTodayDate())
     setFormError('')
   }
@@ -300,11 +338,13 @@ export default function MaintenanceManagement({
   }
 
   function closeModal() {
+    if (isSubmitting) return
+
     setIsModalOpen(false)
     setFormError('')
   }
 
-  function handleCreateRecord(event: FormEvent<HTMLFormElement>) {
+  async function handleCreateRecord(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFormError('')
     setSuccessMessage('')
@@ -319,29 +359,18 @@ export default function MaintenanceManagement({
       return
     }
 
+    if (description.trim().length > 1000) {
+      setFormError('Description cannot exceed 1,000 characters.')
+      return
+    }
+
     if (!performedDate) {
       setFormError('Please select the performed date.')
       return
     }
 
-    if (!performedBy) {
+    if (canSelectPerformer && !performedBy) {
       setFormError('Please select who performed the maintenance.')
-      return
-    }
-
-    const selectedAsset = assets.find((asset) => asset.id === selectedAssetId)
-
-    if (!selectedAsset || selectedAsset.status === 'Retired') {
-      setFormError('Please select a valid non-retired asset.')
-      return
-    }
-
-    // Recheck the assignment before creating a Technician maintenance record.
-    // The backend must enforce this same rule when PostgreSQL is integrated.
-    if (isTechnician && !technicianAssignedAssetIds.has(selectedAssetId)) {
-      setFormError(
-        'You can only record maintenance for assets currently assigned to you.',
-      )
       return
     }
 
@@ -350,20 +379,52 @@ export default function MaintenanceManagement({
       return
     }
 
-    const newRecord: MaintenanceRecord = {
-      id: getNextRecordId(records),
-      assetId: selectedAssetId,
-      performedBy: isTechnician ? currentMockTechnicianId : performedBy,
-      maintenanceType: selectedType,
-      description: description.trim(),
-      performedAt: new Date(`${performedDate}T12:00:00`).toISOString(),
+    if (!selectedAsset || selectedAsset.status.toLowerCase() === 'retired') {
+      setFormError('Please select a valid non-retired asset.')
+      return
     }
 
-    setRecords((previous) => [...previous, newRecord])
-    setSuccessMessage(`${newRecord.id} created successfully.`)
-    closeModal()
-    resetForm()
-    clearFilters()
+    if (
+      canSelectPerformer &&
+      !technicians.some((technician) => technician.id === performedBy)
+    ) {
+      setFormError('Please select an active Technician.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const performedAt = new Date(`${performedDate}T12:00:00`).toISOString()
+
+      const result = await createMaintenanceRecord({
+        data: {
+          assetId: selectedAssetId,
+          ...(canSelectPerformer ? { performedBy } : {}),
+          maintenanceType: selectedType,
+          description: description.trim(),
+          performedAt,
+        },
+      })
+
+      await loadRecords()
+
+      const displayId = getRecordDisplayId(result.data.maintenanceId)
+
+      setSuccessMessage(`Maintenance record ${displayId} created successfully.`)
+
+      setIsModalOpen(false)
+      resetForm()
+      clearFilters()
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to create the maintenance record.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const summaryCards = [
@@ -439,6 +500,22 @@ export default function MaintenanceManagement({
         </div>
       )}
 
+      {loadError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {loadError}
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="ml-2 font-semibold underline"
+          >
+            Reload
+          </button>
+        </div>
+      )}
+
       <section
         aria-label="Maintenance statistics"
         className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
@@ -459,7 +536,7 @@ export default function MaintenanceManagement({
               <div className="min-w-0">
                 <p className="text-sm text-slate-500">{card.label}</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
-                  {card.value}
+                  {isLoading ? '—' : card.value}
                 </p>
                 <p className="mt-1 text-xs text-slate-400">{card.description}</p>
               </div>
@@ -500,9 +577,9 @@ export default function MaintenanceManagement({
             className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500"
           >
             <option>All Types</option>
-            <option>Router</option>
-            <option>Server</option>
-            <option>Switch</option>
+            {assetTypeOptions.map((type) => (
+              <option key={type}>{type}</option>
+            ))}
           </select>
         </label>
 
@@ -558,11 +635,15 @@ export default function MaintenanceManagement({
             </p>
           </div>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-            {filteredRecords.length} records
+            {isLoading ? 'Loading...' : `${filteredRecords.length} records`}
           </span>
         </div>
 
-        {paginatedRecords.length === 0 ? (
+        {isLoading ? (
+          <div className="px-4 py-12 text-center text-sm text-slate-500">
+            Loading maintenance records...
+          </div>
+        ) : paginatedRecords.length === 0 ? (
           <div className="px-4 py-12 text-center">
             <Wrench size={34} className="mx-auto text-slate-300" />
             <p className="mt-3 font-medium text-slate-700">
@@ -576,10 +657,12 @@ export default function MaintenanceManagement({
           <>
             <div className="divide-y divide-slate-100 md:hidden">
               {paginatedRecords.map((record) => (
-                <article key={record.id} className="space-y-3 p-4">
+                <article key={record.maintenanceId} className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-blue-600">{record.id}</p>
+                      <p className="text-xs font-medium text-blue-600">
+                        {record.recordDisplayId}
+                      </p>
                       <h3 className="mt-1 font-semibold text-slate-900">
                         {record.assetName}
                       </h3>
@@ -627,17 +710,21 @@ export default function MaintenanceManagement({
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {paginatedRecords.map((record, index) => (
-                    <tr key={record.id} className="transition hover:bg-slate-50/70">
+                    <tr
+                      key={record.maintenanceId}
+                      className="transition hover:bg-slate-50/70"
+                    >
                       <td className="px-4 py-4 text-slate-400">
                         {(safeCurrentPage - 1) * pageSize + index + 1}
                       </td>
                       <td className="px-4 py-4 font-semibold text-slate-800">
-                        {record.id}
+                        {record.recordDisplayId}
                       </td>
                       <td className="px-4 py-4">
                         <p className="font-medium text-slate-900">{record.assetName}</p>
                         <p className="mt-1 text-xs text-slate-400">
-                          {record.assetShortId} · {record.serialNumber}
+                          {record.assetShortId} ·{' '}
+                          {record.serialNumber ?? 'No serial number'}
                         </p>
                       </td>
                       <td className="px-4 py-4">
@@ -745,7 +832,8 @@ export default function MaintenanceManagement({
               <button
                 type="button"
                 onClick={closeModal}
-                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                disabled={isSubmitting}
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
                 aria-label="Close maintenance form"
               >
                 <X size={20} />
@@ -766,19 +854,25 @@ export default function MaintenanceManagement({
                     value={selectedAssetId}
                     onChange={(event) => setSelectedAssetId(event.target.value)}
                     required
+                    disabled={isSubmitting}
                     className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="">Choose an asset</option>
                     {availableAssets.map((asset) => (
-                      <option key={asset.id} value={asset.id}>
-                        {asset.name} · {asset.id.slice(0, 8).toUpperCase()}
+                      <option key={asset.assetId} value={asset.assetId}>
+                        {asset.assetName} · {asset.assetId.slice(0, 8).toUpperCase()}
                       </option>
                     ))}
                   </select>
-                  {selectedAssetId && (
+                  {selectedAsset && (
                     <p className="text-xs text-slate-500">
-                      {assets.find((asset) => asset.id === selectedAssetId)?.type} ·{' '}
-                      {assets.find((asset) => asset.id === selectedAssetId)?.location}
+                      {selectedAsset.assetType} ·{' '}
+                      {selectedAsset.location || 'Location not specified'}
+                    </p>
+                  )}
+                  {availableAssets.length === 0 && !isLoading && (
+                    <p className="text-xs text-amber-600">
+                      No eligible assets are currently available.
                     </p>
                   )}
                 </div>
@@ -796,10 +890,14 @@ export default function MaintenanceManagement({
                     onChange={(event) =>
                       setSelectedType(event.target.value as MaintenanceType)
                     }
+                    disabled={isSubmitting}
                     className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
-                    <option value="Preventive">Preventive</option>
-                    <option value="Corrective">Corrective</option>
+                    {maintenanceTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -815,12 +913,15 @@ export default function MaintenanceManagement({
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
                     required
-                    maxLength={2000}
+                    maxLength={1000}
                     rows={4}
+                    disabled={isSubmitting}
                     placeholder="Describe the completed maintenance work..."
                     className="w-full rounded-lg border border-slate-200 px-3 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
-                  <p className="text-xs text-slate-400">Maximum 2,000 characters.</p>
+                  <p className="text-xs text-slate-400">
+                    {description.length}/1,000 characters.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -830,9 +931,10 @@ export default function MaintenanceManagement({
                   >
                     Performed By <span className="text-red-500">*</span>
                   </label>
+
                   {isTechnician ? (
                     <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
-                      Karthick (You)
+                      You (logged-in Technician)
                     </div>
                   ) : (
                     <select
@@ -840,15 +942,22 @@ export default function MaintenanceManagement({
                       value={performedBy}
                       onChange={(event) => setPerformedBy(event.target.value)}
                       required
+                      disabled={isSubmitting}
                       className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     >
-                      <option value="">Choose a technician</option>
-                      {mockUsers.map((user) => (
+                      <option value="">Choose a Technician</option>
+                      {technicians.map((user) => (
                         <option key={user.id} value={user.id}>
                           {user.name} — {user.email}
                         </option>
                       ))}
                     </select>
+                  )}
+
+                  {canSelectPerformer && technicians.length === 0 && (
+                    <p className="text-xs text-amber-600">
+                      No active Technician accounts are available.
+                    </p>
                   )}
                 </div>
 
@@ -866,6 +975,7 @@ export default function MaintenanceManagement({
                     max={getTodayDate()}
                     onChange={(event) => setPerformedDate(event.target.value)}
                     required
+                    disabled={isSubmitting}
                     className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   />
                 </div>
@@ -884,15 +994,22 @@ export default function MaintenanceManagement({
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  disabled={isSubmitting}
+                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  disabled={
+                    isSubmitting ||
+                    isLoading ||
+                    availableAssets.length === 0 ||
+                    (canSelectPerformer && technicians.length === 0)
+                  }
+                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Save Maintenance Record
+                  {isSubmitting ? 'Saving...' : 'Save Maintenance Record'}
                 </button>
               </div>
             </form>

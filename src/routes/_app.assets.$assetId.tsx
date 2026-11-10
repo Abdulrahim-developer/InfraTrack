@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
+import { createFileRoute, Link, useRouteContext } from '@tanstack/react-router'
 import {
   ArrowLeft,
   Boxes,
@@ -7,6 +7,7 @@ import {
   Clock,
   FileText,
   Info,
+  Loader2,
   MapPin,
   Network,
   Pencil,
@@ -18,22 +19,15 @@ import {
   Users,
   Wrench,
 } from 'lucide-react'
-import { z } from 'zod'
 
-import {
-  currentMockUserId,
-  currentMockTechnicianId,
-  type AssetStatus,
-} from '#/features/dashboard/data/dashboard.mock'
-import { useAppData } from '#/features/dashboard/context/AppDataContext'
+import EditAssetForm from '#/features/assets/components/EditAssetForm'
+import AssetAssignmentHistory from '#/features/assets/components/AssetAssignmentHistory'
+import AssetMaintenanceHistory from '#/features/assets/components/AssetMaintenanceHistory'
+import { getAssetById } from '#/features/assets/server/get-asset-by-id'
+import { retireAsset } from '#/features/assets/server/retire-asset'
 
 export const Route = createFileRoute('/_app/assets/$assetId')({
   component: AssetDetailsPage,
-  params: {
-    parse: (params) => ({
-      assetId: z.string().min(1).parse(params.assetId),
-    }),
-  },
 })
 
 type DetailTab = 'Overview' | 'Assignments' | 'Maintenance' | 'Audit Logs'
@@ -45,40 +39,148 @@ const tabs: { label: DetailTab; icon: typeof Boxes }[] = [
   { label: 'Audit Logs', icon: ShieldCheck },
 ]
 
-const statusStyles: Record<AssetStatus, string> = {
+const statusStyles: Record<string, string> = {
   Active: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   Maintenance: 'bg-amber-50 text-amber-700 ring-amber-200',
   'In Storage': 'bg-violet-50 text-violet-700 ring-violet-200',
   Retired: 'bg-slate-100 text-slate-600 ring-slate-200',
 }
 
-function formatDate(value: string) {
-  return new Date(value).toISOString().replace('T', ' ').slice(0, 16)
-}
+type AssetDetails = NonNullable<Awaited<ReturnType<typeof getAssetById>>['data']>
 
-function getAssignedUserName(userId: string | null) {
-  if (!userId) return 'Unassigned'
-  if (userId === currentMockUserId) return 'Asset Manager'
-  if (userId === currentMockTechnicianId) return 'Technician'
-  return 'Other User'
+function formatDate(value: string | Date | null | undefined) {
+  if (!value) return '—'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) return '—'
+
+  return date.toLocaleString()
 }
 
 function AssetDetailsPage() {
   const { assetId } = Route.useParams()
+  const { authenticatedUser } = useRouteContext({ from: '/_app' })
+
+  const canEditAsset =
+    authenticatedUser.role === 'Administrator' ||
+    authenticatedUser.role === 'Asset Manager'
+
   const [activeTab, setActiveTab] = useState<DetailTab>('Overview')
+  const [asset, setAsset] = useState<AssetDetails | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  // Read all asset-related data from the shared application state.
-  const { assets, assignments, maintenanceRecords } = useAppData()
+  const [isRetireDialogOpen, setIsRetireDialogOpen] = useState(false)
+  const [isRetiring, setIsRetiring] = useState(false)
+  const [retireError, setRetireError] = useState('')
 
-  const normalizedId = assetId.toLowerCase()
+  useEffect(() => {
+    let cancelled = false
 
-  const asset = assets.find(
-    (item) =>
-      item.id.toLowerCase() === normalizedId ||
-      item.id.slice(0, 8).toLowerCase() === normalizedId,
-  )
+    async function loadAsset() {
+      setIsLoading(true)
+      setErrorMessage('')
+      setAsset(null)
 
-  if (!asset) {
+      try {
+        const result = await getAssetById({
+          data: { assetId },
+        })
+
+        if (cancelled) return
+
+        if (!result.success || !result.data) {
+          setErrorMessage(
+            'No asset matches the supplied ID. It may not exist or you may not have permission to view it.',
+          )
+          return
+        }
+
+        setAsset(result.data)
+      } catch (error) {
+        if (cancelled) return
+
+        console.error('Failed to load asset details:', error)
+
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load asset details. Please try again.',
+        )
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadAsset()
+
+    return () => {
+      cancelled = true
+    }
+  }, [assetId, refreshKey])
+
+  async function handleRetireAsset() {
+    if (!asset || isRetiring) return
+
+    setRetireError('')
+
+    try {
+      setIsRetiring(true)
+
+      const result = await retireAsset({
+        data: {
+          assetId: asset.assetId,
+        },
+      })
+
+      if (result.success) {
+        setIsRetireDialogOpen(false)
+        setRefreshKey((current) => current + 1)
+      }
+    } catch (error) {
+      setRetireError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to retire this asset. Please try again.',
+      )
+    } finally {
+      setIsRetiring(false)
+    }
+  }
+
+  // Show the edit form when the user clicks Edit Asset.
+  if (isEditing && asset) {
+    return (
+      <main className="min-w-0 space-y-6">
+        <EditAssetForm
+          asset={asset}
+          onCancel={() => setIsEditing(false)}
+          onSaved={() => {
+            setIsEditing(false)
+            setRefreshKey((current) => current + 1)
+          }}
+        />
+      </main>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <main className="rounded-xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+        <Boxes size={32} className="mx-auto text-blue-500" />
+        <p className="mt-4 text-sm font-medium text-slate-600">
+          Loading asset details...
+        </p>
+      </main>
+    )
+  }
+
+  if (errorMessage || !asset) {
     return (
       <main className="space-y-5">
         <Link
@@ -91,48 +193,33 @@ function AssetDetailsPage() {
 
         <section className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <Boxes size={36} className="mx-auto text-slate-300" />
-          <h1 className="mt-3 text-xl font-semibold text-slate-900">Asset not found</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            No asset matches the supplied ID. Please check the asset ID and try again.
+
+          <h1 className="mt-3 text-xl font-semibold text-slate-900">Asset unavailable</h1>
+
+          <p role="alert" className="mt-2 text-sm text-slate-500">
+            {errorMessage || 'Unable to find this asset.'}
           </p>
+
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Retry
+          </button>
         </section>
       </main>
     )
   }
 
-  const assetAssignments = assignments
-    .filter((item) => item.assetId === asset.id)
-    .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime())
-
-  const assetMaintenance = maintenanceRecords
-    .filter((item) => item.assetId === asset.id)
-    .sort((a, b) => new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime())
-
-  const latestAssignment = assetAssignments.find((item) => item.returnedAt === null)
-
-  const activities = [
-    ...assetAssignments.map((item) => ({
-      id: `assignment-${item.assignedAt}`,
-      title: item.returnedAt ? 'Assignment Returned' : 'Asset Assigned',
-      description: item.returnedAt
-        ? `Assignment returned on ${formatDate(item.returnedAt)}`
-        : `Currently assigned to ${getAssignedUserName(item.assignedToUserId)}`,
-      timestamp: item.returnedAt ?? item.assignedAt,
-      icon: Users,
-      color: 'bg-violet-100 text-violet-600',
-    })),
-    ...assetMaintenance.map((item) => ({
-      id: item.id,
-      title: `Maintenance – ${item.maintenanceType}`,
-      description: item.description,
-      timestamp: item.performedAt,
-      icon: Wrench,
-      color: 'bg-amber-100 text-amber-600',
-    })),
-  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-
   const AssetIcon =
-    asset.type === 'Router' ? Network : asset.type === 'Server' ? Server : Boxes
+    asset.assetType === 'Router' ? Network : asset.assetType === 'Server' ? Server : Boxes
+
+  const currentAssignee =
+    asset.assignedToUserName ?? asset.assignedToDepartment ?? 'Unassigned'
+
+  const isAssignmentAvailable =
+    canEditAsset && asset.status === 'Active' && !asset.assignedAt
 
   return (
     <main className="min-w-0 space-y-6">
@@ -142,11 +229,15 @@ function AssetDetailsPage() {
           <Link to="/" className="hover:text-blue-600">
             Dashboard
           </Link>
+
           <span>/</span>
+
           <Link to="/assets" className="hover:text-blue-600">
             Asset Inventory
           </Link>
+
           <span>/</span>
+
           <span className="font-medium text-slate-700">Asset Details</span>
         </div>
 
@@ -154,6 +245,7 @@ function AssetDetailsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Asset Details
           </h1>
+
           <p className="mt-1 text-sm text-slate-500">
             View complete information, assignment, maintenance and audit history for this
             asset.
@@ -169,9 +261,12 @@ function AssetDetailsPage() {
           </div>
 
           <div className="min-w-0">
-            <h2 className="break-words text-lg font-bold text-slate-900">{asset.name}</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Asset ID: {asset.id.slice(0, 8).toUpperCase()}
+            <h2 className="break-words text-lg font-bold text-slate-900">
+              {asset.assetName}
+            </h2>
+
+            <p className="mt-1 break-all text-sm text-slate-500">
+              Asset ID: {asset.assetId}
             </p>
           </div>
 
@@ -179,8 +274,11 @@ function AssetDetailsPage() {
 
           <div>
             <p className="text-xs text-slate-500">Status</p>
+
             <span
-              className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${statusStyles[asset.status]}`}
+              className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 ring-inset ${
+                statusStyles[asset.status] ?? 'bg-slate-100 text-slate-600 ring-slate-200'
+              }`}
             >
               {asset.status}
             </span>
@@ -188,14 +286,15 @@ function AssetDetailsPage() {
 
           <div>
             <p className="text-xs text-slate-500">Type</p>
-            <p className="mt-1 text-sm font-medium text-slate-800">{asset.type}</p>
+            <p className="mt-1 text-sm font-medium text-slate-800">{asset.assetType}</p>
           </div>
 
           <div className="min-w-0">
             <p className="text-xs text-slate-500">Location</p>
+
             <p className="mt-1 flex items-center gap-1 text-sm font-medium text-slate-800">
               <MapPin size={15} className="shrink-0 text-slate-400" />
-              {asset.location}
+              {asset.location || '—'}
             </p>
           </div>
         </div>
@@ -203,29 +302,64 @@ function AssetDetailsPage() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            disabled
-            title="Asset editing will be implemented later"
-            className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-400"
+            onClick={() => setIsEditing(true)}
+            disabled={!canEditAsset || asset.status === 'Retired'}
+            title={
+              !canEditAsset
+                ? 'You do not have permission to edit assets'
+                : asset.status === 'Retired'
+                  ? 'Retired assets cannot be edited'
+                  : 'Edit asset information'
+            }
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Pencil size={16} />
             Edit Asset
           </button>
 
-          <button
-            type="button"
-            disabled
-            title="Assignment workflow will be implemented later"
-            className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-400"
+          <Link
+            to="/assignments"
+            search={{
+              assetId: asset.assetId,
+              action: 'create',
+            }}
+            aria-disabled={!isAssignmentAvailable}
+            onClick={(event) => {
+              if (!isAssignmentAvailable) {
+                event.preventDefault()
+              }
+            }}
+            title={
+              !canEditAsset
+                ? 'You do not have permission to assign assets'
+                : asset.status !== 'Active'
+                  ? 'Only active assets can be assigned'
+                  : asset.assignedAt
+                    ? 'This asset already has an active assignment'
+                    : 'Assign this asset'
+            }
+            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium ${
+              isAssignmentAvailable
+                ? 'border-slate-200 text-slate-700 transition hover:bg-slate-50'
+                : 'cursor-not-allowed border-slate-200 text-slate-400'
+            }`}
           >
             <UserRound size={16} />
             Assign
-          </button>
+          </Link>
 
           <button
             type="button"
-            disabled
-            title="Maintenance creation will be implemented later"
-            className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-400"
+            onClick={() => {
+              window.location.href = `/maintenance?assetId=${asset.assetId}&action=create`
+            }}
+            disabled={
+              !['Administrator', 'Asset Manager', 'Technician'].includes(
+                authenticatedUser.role,
+              )
+            }
+            title="Create a maintenance record for this asset"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Plus size={16} />
             Add Maintenance
@@ -233,15 +367,109 @@ function AssetDetailsPage() {
 
           <button
             type="button"
-            disabled
-            title="Asset retirement workflow will be implemented later"
-            className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-400"
+            onClick={() => {
+              setRetireError('')
+              setIsRetireDialogOpen(true)
+            }}
+            disabled={!canEditAsset || asset.status === 'Retired'}
+            title={
+              !canEditAsset
+                ? 'You do not have permission to retire assets'
+                : asset.status === 'Retired'
+                  ? 'This asset is already retired'
+                  : 'Retire this asset'
+            }
+            className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 size={16} />
             Retire
           </button>
         </div>
       </section>
+
+      {/* Retirement confirmation dialog */}
+      {isRetireDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isRetiring) {
+              setIsRetireDialogOpen(false)
+              setRetireError('')
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="retire-dialog-title"
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
+          >
+            <div className="flex size-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+              <Trash2 size={23} />
+            </div>
+
+            <h2
+              id="retire-dialog-title"
+              className="mt-4 text-lg font-bold text-slate-900"
+            >
+              Retire this asset?
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              You are about to retire{' '}
+              <span className="font-semibold text-slate-900">{asset.assetName}</span>. Its
+              status will change to Retired, and the action will be recorded in the asset
+              audit log.
+            </p>
+
+            <p className="mt-3 text-sm text-slate-500">
+              This action cannot be reversed through the normal Edit Asset form.
+            </p>
+
+            {retireError && (
+              <p
+                role="alert"
+                className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              >
+                {retireError}
+              </p>
+            )}
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRetireDialogOpen(false)
+                  setRetireError('')
+                }}
+                disabled={isRetiring}
+                className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRetireAsset}
+                disabled={isRetiring}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isRetiring ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Retiring...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    Confirm Retirement
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* Tabs */}
       <nav
@@ -279,51 +507,68 @@ function AssetDetailsPage() {
               <div className="flex size-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                 <Info size={21} />
               </div>
+
               <div>
                 <h3 className="font-semibold text-slate-900">Asset Information</h3>
+
                 <p className="text-xs text-slate-500">Registered asset details</p>
               </div>
             </div>
 
             <dl className="mt-4 divide-y divide-slate-100">
               {[
-                ['Asset Name', asset.name],
-                ['Asset ID', asset.id],
-                ['Asset Type', asset.type],
-                ['Serial Number', asset.serialNumber],
-                ['Location', asset.location],
+                ['Asset Name', asset.assetName],
+                ['Asset ID', asset.assetId],
+                ['Asset Type', asset.assetType],
+                ['Serial Number', asset.serialNumber || '—'],
+                ['Manufacturer', asset.manufacturer || '—'],
+                ['Model Number', asset.modelNumber || '—'],
+                ['Location', asset.location || '—'],
+                ['Purchase Date', asset.purchaseDate || '—'],
+                ['Warranty Expiry', asset.warrantyExpiry || '—'],
               ].map(([label, value]) => (
                 <div
                   key={label}
-                  className="grid grid-cols-1 gap-1 px-3 py-3 sm:grid-cols-2 sm:gap-4 odd:bg-slate-50"
+                  className="grid grid-cols-1 gap-1 px-3 py-3 odd:bg-slate-50 sm:grid-cols-2 sm:gap-4"
                 >
                   <dt className="text-sm font-medium text-slate-700">{label}</dt>
+
                   <dd className="break-all text-sm text-slate-600">{value}</dd>
                 </div>
               ))}
 
-              <div className="grid grid-cols-1 gap-1 px-3 py-3 sm:grid-cols-2 sm:gap-4 odd:bg-slate-50">
+              <div className="grid grid-cols-1 gap-1 px-3 py-3 odd:bg-slate-50 sm:grid-cols-2 sm:gap-4">
                 <dt className="text-sm font-medium text-slate-700">Status</dt>
+
                 <dd>
                   <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${statusStyles[asset.status]}`}
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
+                      statusStyles[asset.status] ??
+                      'bg-slate-100 text-slate-600 ring-slate-200'
+                    }`}
                   >
                     {asset.status}
                   </span>
                 </dd>
               </div>
 
-              <div className="grid grid-cols-1 gap-1 px-3 py-3 sm:grid-cols-2 sm:gap-4 odd:bg-slate-50">
+              <div className="grid grid-cols-1 gap-1 px-3 py-3 odd:bg-slate-50 sm:grid-cols-2 sm:gap-4">
                 <dt className="text-sm font-medium text-slate-700">Current Assignment</dt>
-                <dd className="text-sm text-slate-600">
-                  {getAssignedUserName(latestAssignment?.assignedToUserId ?? null)}
-                </dd>
+
+                <dd className="text-sm text-slate-600">{currentAssignee}</dd>
               </div>
             </dl>
 
-            <div className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
-              <CalendarDays size={16} className="mt-0.5 shrink-0" />
-              Creation and update timestamps are not currently included in the mock data.
+            <div className="mt-4 space-y-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
+              <p className="flex items-start gap-2">
+                <CalendarDays size={16} className="mt-0.5 shrink-0" />
+                Created: {formatDate(asset.createdAt)}
+              </p>
+
+              <p className="flex items-start gap-2">
+                <Clock size={16} className="mt-0.5 shrink-0" />
+                Last updated: {formatDate(asset.updatedAt)}
+              </p>
             </div>
           </section>
 
@@ -334,14 +579,16 @@ function AssetDetailsPage() {
                 <div className="flex size-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                   <AssetIcon size={21} />
                 </div>
+
                 <div>
                   <h3 className="font-semibold text-slate-900">Asset Visual</h3>
+
                   <p className="text-xs text-slate-500">Asset category preview</p>
                 </div>
               </div>
 
               <div className="mt-4 flex min-h-48 items-center justify-center overflow-hidden rounded-lg bg-slate-50 p-4">
-                {asset.type === 'Router' ? (
+                {asset.assetType === 'Router' ? (
                   <img
                     src="/images/router-illustration.png"
                     alt="Router illustration"
@@ -350,176 +597,90 @@ function AssetDetailsPage() {
                 ) : (
                   <div className="text-center text-slate-400">
                     <AssetIcon size={64} className="mx-auto text-blue-500" />
+
                     <p className="mt-3 text-sm font-medium text-slate-600">
-                      {asset.type}
+                      {asset.assetType}
                     </p>
+
                     <p className="mt-1 text-xs">Category illustration placeholder</p>
                   </div>
                 )}
               </div>
             </section>
 
-            {/* Recent activity */}
+            {/* Current assignment */}
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <div className="flex size-10 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
+                  <Users size={21} />
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-slate-900">Current Assignment</h3>
+
+                  <p className="text-xs text-slate-500">
+                    Current assignment information from PostgreSQL
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div>
+                  <p className="text-xs text-slate-500">Assigned To</p>
+
+                  <p className="mt-1 text-sm font-medium text-slate-800">
+                    {currentAssignee}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-slate-500">Assigned At</p>
+
+                  <p className="mt-1 text-sm text-slate-700">
+                    {formatDate(asset.assignedAt)}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Recent activity placeholder */}
             <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
                 <div className="flex size-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                   <Clock size={21} />
                 </div>
+
                 <div>
                   <h3 className="font-semibold text-slate-900">Recent Activity</h3>
+
                   <p className="text-xs text-slate-500">
-                    Available assignment and maintenance events
+                    Assignment and maintenance events
                   </p>
                 </div>
               </div>
 
-              {activities.length === 0 ? (
-                <p className="py-8 text-center text-sm text-slate-500">
-                  No assignment or maintenance activity is available.
-                </p>
-              ) : (
-                <div className="mt-4 space-y-4">
-                  {activities.map((activity) => {
-                    const Icon = activity.icon
-
-                    return (
-                      <div key={activity.id} className="flex gap-3">
-                        <div
-                          className={`flex size-9 shrink-0 items-center justify-center rounded-full ${activity.color}`}
-                        >
-                          <Icon size={16} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap justify-between gap-2">
-                            <p className="text-sm font-semibold text-slate-800">
-                              {activity.title}
-                            </p>
-                            <time className="text-xs text-slate-400">
-                              {formatDate(activity.timestamp)}
-                            </time>
-                          </div>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {activity.description}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+              <p className="py-8 text-center text-sm text-slate-500">
+                Assignment and maintenance activity history will appear here after those
+                modules are connected to PostgreSQL.
+              </p>
             </section>
           </div>
         </div>
       )}
 
       {/* Assignment history */}
-      {activeTab === 'Assignments' && (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <Users size={21} className="text-blue-600" />
-            <div>
-              <h3 className="font-semibold text-slate-900">Assignment History</h3>
-              <p className="text-xs text-slate-500">
-                Current and previous asset assignments
-              </p>
-            </div>
-          </div>
-
-          {assetAssignments.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-500">
-              No assignment history available.
-            </p>
-          ) : (
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full min-w-[550px] text-left text-sm">
-                <thead className="bg-slate-50 text-xs text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Assigned To</th>
-                    <th className="px-4 py-3 font-medium">Assigned At</th>
-                    <th className="px-4 py-3 font-medium">Returned At</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {assetAssignments.map((assignment) => (
-                    <tr key={assignment.assignedAt}>
-                      <td className="px-4 py-4 text-slate-700">
-                        {getAssignedUserName(assignment.assignedToUserId)}
-                      </td>
-                      <td className="px-4 py-4 text-slate-600">
-                        {formatDate(assignment.assignedAt)}
-                      </td>
-                      <td className="px-4 py-4 text-slate-600">
-                        {assignment.returnedAt ? formatDate(assignment.returnedAt) : '—'}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                            assignment.returnedAt
-                              ? 'bg-slate-100 text-slate-600'
-                              : 'bg-emerald-50 text-emerald-700'
-                          }`}
-                        >
-                          {assignment.returnedAt ? 'Returned' : 'Current'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
+      {activeTab === 'Assignments' && <AssetAssignmentHistory assetId={asset.assetId} />}
 
       {/* Maintenance history */}
-      {activeTab === 'Maintenance' && (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <Wrench size={21} className="text-blue-600" />
-            <div>
-              <h3 className="font-semibold text-slate-900">Maintenance History</h3>
-              <p className="text-xs text-slate-500">
-                Completed maintenance records for this asset
-              </p>
-            </div>
-          </div>
-
-          {assetMaintenance.length === 0 ? (
-            <p className="py-10 text-center text-sm text-slate-500">
-              No completed maintenance records available.
-            </p>
-          ) : (
-            <div className="mt-5 space-y-4">
-              {assetMaintenance.map((record) => (
-                <article
-                  key={record.id}
-                  className="rounded-lg border border-slate-100 p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h4 className="font-semibold text-slate-800">
-                      {record.maintenanceType}
-                    </h4>
-                    <time className="text-xs text-slate-400">
-                      {formatDate(record.performedAt)}
-                    </time>
-                  </div>
-                  <p className="mt-2 text-sm text-slate-600">{record.description}</p>
-                  <p className="mt-2 text-xs text-slate-400">
-                    Performed by: {getAssignedUserName(record.performedBy)}
-                  </p>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+      {activeTab === 'Maintenance' && <AssetMaintenanceHistory assetId={asset.assetId} />}
 
       {/* Audit log placeholder */}
       {activeTab === 'Audit Logs' && (
         <section className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
           <FileText size={36} className="mx-auto text-slate-300" />
+
           <h3 className="mt-3 font-semibold text-slate-800">Asset Audit History</h3>
+
           <p className="mt-2 text-sm text-slate-500">
             Audit log records will appear here when the audit data is connected.
           </p>

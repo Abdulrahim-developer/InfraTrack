@@ -11,6 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppAssetsRouteImport } from './routes/_app.assets'
 import { Route as AppAssignmentsRouteImport } from './routes/_app.assignments'
@@ -31,6 +34,21 @@ const AppRoute = AppRouteImport.update({
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AcceptInvitationRoute = AcceptInvitationRouteImport.update({
+  id: '/accept-invitation',
+  path: '/accept-invitation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -97,6 +115,9 @@ const AppAssetsNewRoute = AppAssetsNewRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/about': typeof AboutRoute
+  '/accept-invitation': typeof AcceptInvitationRoute
+  '/login': typeof LoginRoute
+  '/setup': typeof SetupRoute
   '/assets': typeof AppAssetsRouteWithChildren
   '/assignments': typeof AppAssignmentsRoute
   '/audit-logs': typeof AppAuditLogsRoute
@@ -111,6 +132,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/about': typeof AboutRoute
+  '/accept-invitation': typeof AcceptInvitationRoute
+  '/login': typeof LoginRoute
+  '/setup': typeof SetupRoute
   '/assignments': typeof AppAssignmentsRoute
   '/audit-logs': typeof AppAuditLogsRoute
   '/maintenance': typeof AppMaintenanceRoute
@@ -127,6 +151,9 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/about': typeof AboutRoute
+  '/accept-invitation': typeof AcceptInvitationRoute
+  '/login': typeof LoginRoute
+  '/setup': typeof SetupRoute
   '/_app/assets': typeof AppAssetsRouteWithChildren
   '/_app/assignments': typeof AppAssignmentsRoute
   '/_app/audit-logs': typeof AppAuditLogsRoute
@@ -145,6 +172,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/accept-invitation'
+    | '/login'
+    | '/setup'
     | '/assets'
     | '/assignments'
     | '/audit-logs'
@@ -159,6 +189,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/about'
+    | '/accept-invitation'
+    | '/login'
+    | '/setup'
     | '/assignments'
     | '/audit-logs'
     | '/maintenance'
@@ -174,6 +207,9 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/about'
+    | '/accept-invitation'
+    | '/login'
+    | '/setup'
     | '/_app/assets'
     | '/_app/assignments'
     | '/_app/audit-logs'
@@ -191,6 +227,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AboutRoute: typeof AboutRoute
+  AcceptInvitationRoute: typeof AcceptInvitationRoute
+  LoginRoute: typeof LoginRoute
+  SetupRoute: typeof SetupRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -207,6 +246,27 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/accept-invitation': {
+      id: '/accept-invitation'
+      path: '/accept-invitation'
+      fullPath: '/accept-invitation'
+      preLoaderRoute: typeof AcceptInvitationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -341,6 +401,9 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AboutRoute: AboutRoute,
+  AcceptInvitationRoute: AcceptInvitationRoute,
+  LoginRoute: LoginRoute,
+  SetupRoute: SetupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

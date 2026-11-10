@@ -1,8 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouteContext } from '@tanstack/react-router'
 import { z } from 'zod'
 
 import MaintenanceManagement from '#/features/maintenance/components/MaintenanceManagement'
-import { useRolePreview } from '#/features/navigation/RolePreviewContext'
 
 export const Route = createFileRoute('/_app/maintenance')({
   validateSearch: z.object({
@@ -13,10 +12,14 @@ export const Route = createFileRoute('/_app/maintenance')({
 })
 
 function MaintenancePage() {
-  const { role } = useRolePreview()
+  const { authenticatedUser } = useRouteContext({ from: '/_app' })
   const { assetId, action } = Route.useSearch()
 
   return (
-    <MaintenanceManagement role={role} initialAssetId={assetId} initialAction={action} />
+    <MaintenanceManagement
+      role={authenticatedUser.role}
+      initialAssetId={assetId}
+      initialAction={action}
+    />
   )
 }

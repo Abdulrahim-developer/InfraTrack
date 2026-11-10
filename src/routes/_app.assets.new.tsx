@@ -1,13 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouteContext } from '@tanstack/react-router'
 import RegisterAsset from '#/features/assets/components/RegisterAsset'
-import { useRolePreview } from '#/features/navigation/RolePreviewContext'
 
 export const Route = createFileRoute('/_app/assets/new')({
   component: RegisterAssetPage,
 })
 
 function RegisterAssetPage() {
-  const { role } = useRolePreview()
+  const { authenticatedUser } = useRouteContext({ from: '/_app' })
 
-  return <RegisterAsset role={role} />
+  return <RegisterAsset role={authenticatedUser.role} />
 }

@@ -1,23 +1,27 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+
 import {
   CheckCircle2,
   Eye,
+  Loader2,
   MoreHorizontal,
-  Pencil,
   Plus,
-  RefreshCw,
   Search,
   ShieldCheck,
-  Trash2,
   Users,
   Wrench,
   X,
 } from 'lucide-react'
 
+import { listManagedUsers } from '#/features/users/server/list-managed-users'
+import { createUserInvitation } from '#/features/users/server/create-user-invitation'
 import type { AppRole } from '#/features/navigation/navigation.config'
 
-type ManagedRole = Exclude<AppRole, 'Viewer/Auditor'> | 'Viewer/Auditor'
+type ManagedRole = AppRole
 type UserStatus = 'Active' | 'Invited' | 'Deactivated'
+
+type InvitationRoleName =
+  'ADMINISTRATOR' | 'ASSET_MANAGER' | 'TECHNICIAN' | 'VIEWER_AUDITOR'
 
 interface ManagedUser {
   id: string
@@ -28,80 +32,21 @@ interface ManagedUser {
   createdAt: string
 }
 
-type ModalMode = 'invite' | 'edit' | 'role' | 'details' | null
-
-const initialUsers: ManagedUser[] = [
-  {
-    id: 'USR-0001',
-    name: 'Abdul Rahim',
-    email: 'rahim@example.test',
-    role: 'Administrator',
-    status: 'Active',
-    createdAt: '2026-11-01',
-  },
-  {
-    id: 'USR-0002',
-    name: 'Naveen K',
-    email: 'naveen@example.test',
-    role: 'Asset Manager',
-    status: 'Active',
-    createdAt: '2026-10-28',
-  },
-  {
-    id: 'USR-0003',
-    name: 'Satish M',
-    email: 'satish@example.test',
-    role: 'Technician',
-    status: 'Active',
-    createdAt: '2026-10-25',
-  },
-  {
-    id: 'USR-0004',
-    name: 'Divya N',
-    email: 'divya@example.test',
-    role: 'Viewer/Auditor',
-    status: 'Active',
-    createdAt: '2026-10-20',
-  },
-  {
-    id: 'USR-0005',
-    name: 'Arun P',
-    email: 'arun@example.test',
-    role: 'Asset Manager',
-    status: 'Deactivated',
-    createdAt: '2026-09-28',
-  },
-  {
-    id: 'USR-0006',
-    name: 'Karthick S',
-    email: 'karthick@example.test',
-    role: 'Technician',
-    status: 'Active',
-    createdAt: '2026-09-25',
-  },
-  {
-    id: 'USR-0007',
-    name: 'Meera R',
-    email: 'meera@example.test',
-    role: 'Viewer/Auditor',
-    status: 'Active',
-    createdAt: '2026-09-20',
-  },
-  {
-    id: 'USR-0008',
-    name: 'Rahul V',
-    email: 'rahul@example.test',
-    role: 'Administrator',
-    status: 'Active',
-    createdAt: '2026-09-18',
-  },
-]
-
 const roles: ManagedRole[] = [
   'Administrator',
   'Asset Manager',
   'Technician',
   'Viewer/Auditor',
+]
+
+const invitationRoles: {
+  label: ManagedRole
+  value: InvitationRoleName
+}[] = [
+  { label: 'Administrator', value: 'ADMINISTRATOR' },
+  { label: 'Asset Manager', value: 'ASSET_MANAGER' },
+  { label: 'Technician', value: 'TECHNICIAN' },
+  { label: 'Viewer/Auditor', value: 'VIEWER_AUDITOR' },
 ]
 
 const dateFormatter = new Intl.DateTimeFormat('en-IN', {
@@ -138,17 +83,11 @@ function getStatusStyle(status: UserStatus) {
   }
 }
 
-function getNextUserId(users: ManagedUser[]) {
-  const highest = users.reduce((max, user) => {
-    const match = user.id.match(/^USR-(\d+)$/)
-    return match ? Math.max(max, Number(match[1])) : max
-  }, 0)
-
-  return `USR-${String(highest + 1).padStart(4, '0')}`
-}
-
 export default function UserManagement() {
-  const [users, setUsers] = useState<ManagedUser[]>(initialUsers)
+  const [users, setUsers] = useState<ManagedUser[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('All Roles')
   const [statusFilter, setStatusFilter] = useState('All Status')
@@ -156,14 +95,37 @@ export default function UserManagement() {
   const [currentPage, setCurrentPage] = useState(1)
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
-  const [modalMode, setModalMode] = useState<ModalMode>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
 
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [selectedRole, setSelectedRole] = useState<ManagedRole>('Technician')
-  const [formError, setFormError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [formError, setFormError] = useState('')
+
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<InvitationRoleName>('TECHNICIAN')
+  const [isInviting, setIsInviting] = useState(false)
+
+  async function loadUsers() {
+    try {
+      setIsLoading(true)
+      setLoadError('')
+
+      const result = await listManagedUsers()
+      setUsers(result.data as ManagedUser[])
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load users. Please try again.',
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadUsers()
+  }, [])
 
   const selectedUser = users.find((user) => user.id === selectedUserId)
 
@@ -210,139 +172,66 @@ export default function UserManagement() {
     setCurrentPage(1)
   }
 
-  function closeModal() {
-    setModalMode(null)
+  function closeDetails() {
     setSelectedUserId(null)
-    setFormError('')
-    setName('')
-    setEmail('')
-    setSelectedRole('Technician')
+  }
+
+  function openDetails(user: ManagedUser) {
+    setSelectedUserId(user.id)
+    setOpenMenuId(null)
   }
 
   function openInviteModal() {
+    setInviteEmail('')
+    setInviteRole('TECHNICIAN')
+    setFormError('')
     setSuccessMessage('')
-    setName('')
-    setEmail('')
-    setSelectedRole('Technician')
-    setFormError('')
-    setModalMode('invite')
+    setIsInviteModalOpen(true)
   }
 
-  function openUserAction(user: ManagedUser, mode: Exclude<ModalMode, 'invite' | null>) {
-    setSelectedUserId(user.id)
-    setName(user.name)
-    setEmail(user.email)
-    setSelectedRole(user.role)
+  function closeInviteModal() {
+    if (isInviting) return
+
+    setIsInviteModalOpen(false)
     setFormError('')
-    setOpenMenuId(null)
-    setModalMode(mode)
   }
 
-  function handleInvite(event: FormEvent<HTMLFormElement>) {
+  async function handleInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
     setFormError('')
     setSuccessMessage('')
 
-    const normalizedEmail = email.trim().toLowerCase()
+    const normalizedEmail = inviteEmail.trim().toLowerCase()
 
-    if (!name.trim()) {
-      setFormError("Please enter the user's full name.")
+    if (!normalizedEmail) {
+      setFormError('Please enter an email address.')
       return
     }
 
-    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setFormError('Please enter a valid email address.')
-      return
+    try {
+      setIsInviting(true)
+
+      const result = await createUserInvitation({
+        data: {
+          email: normalizedEmail,
+          roleName: inviteRole,
+        },
+      })
+
+      setIsInviteModalOpen(false)
+      setInviteEmail('')
+
+      setSuccessMessage(result.message)
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to send invitation. Please try again.',
+      )
+    } finally {
+      setIsInviting(false)
     }
-
-    if (users.some((user) => user.email.toLowerCase() === normalizedEmail)) {
-      setFormError('A user or invitation with this email already exists.')
-      return
-    }
-
-    const newUser: ManagedUser = {
-      id: getNextUserId(users),
-      name: name.trim(),
-      email: normalizedEmail,
-      role: selectedRole,
-      status: 'Invited',
-      createdAt: new Date().toISOString().slice(0, 10),
-    }
-
-    setUsers((previous) => [...previous, newUser])
-    setSuccessMessage(`Invitation for ${normalizedEmail} has been created.`)
-    closeModal()
-    clearFilters()
-  }
-
-  function handleEdit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    if (!selectedUser) return
-
-    const normalizedEmail = email.trim().toLowerCase()
-
-    if (!name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setFormError('Enter a valid name and email address.')
-      return
-    }
-
-    const duplicate = users.some(
-      (user) =>
-        user.id !== selectedUser.id && user.email.toLowerCase() === normalizedEmail,
-    )
-
-    if (duplicate) {
-      setFormError('Another user already has this email address.')
-      return
-    }
-
-    setUsers((previous) =>
-      previous.map((user) =>
-        user.id === selectedUser.id
-          ? { ...user, name: name.trim(), email: normalizedEmail }
-          : user,
-      ),
-    )
-
-    setSuccessMessage('User details updated.')
-    closeModal()
-  }
-
-  function handleRoleChange(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    if (!selectedUser) return
-
-    setUsers((previous) =>
-      previous.map((user) =>
-        user.id === selectedUser.id ? { ...user, role: selectedRole } : user,
-      ),
-    )
-
-    setSuccessMessage(`Role updated for ${selectedUser.name}.`)
-    closeModal()
-  }
-
-  function toggleUserStatus(user: ManagedUser) {
-    const nextStatus: UserStatus =
-      user.status === 'Deactivated' ? 'Active' : 'Deactivated'
-
-    setUsers((previous) =>
-      previous.map((item) =>
-        item.id === user.id ? { ...item, status: nextStatus } : item,
-      ),
-    )
-
-    setOpenMenuId(null)
-    setSuccessMessage(`${user.name} has been ${nextStatus.toLowerCase()}.`)
-  }
-
-  function handleResetPassword(user: ManagedUser) {
-    setOpenMenuId(null)
-    setSuccessMessage(
-      `Password reset action prepared for ${user.email}. Actual email delivery will be added with backend integration.`,
-    )
   }
 
   const summaryCards = [
@@ -393,7 +282,7 @@ export default function UserManagement() {
         <button
           type="button"
           onClick={openInviteModal}
-          className="inline-flex w-fit items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className="inline-flex w-fit items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
         >
           <Plus size={18} />
           Add New User
@@ -435,10 +324,11 @@ export default function UserManagement() {
               >
                 <Icon size={23} />
               </div>
+
               <div className="min-w-0">
                 <p className="text-xs text-slate-500">{card.label}</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
-                  {card.value}
+                  {isLoading ? '—' : card.value}
                 </p>
               </div>
             </article>
@@ -518,12 +408,29 @@ export default function UserManagement() {
               User accounts, assigned roles and access status
             </p>
           </div>
+
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-            {filteredUsers.length} users
+            {isLoading ? 'Loading...' : `${filteredUsers.length} users`}
           </span>
         </div>
 
-        {paginatedUsers.length === 0 ? (
+        {isLoading ? (
+          <div className="px-4 py-12 text-center">
+            <p className="text-sm text-slate-500">Loading users from the database...</p>
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="px-4 py-12 text-center">
+            <p className="font-medium text-red-600">Unable to load users</p>
+            <p className="mt-2 text-sm text-slate-500">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => void loadUsers()}
+              className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+            >
+              Try Again
+            </button>
+          </div>
+        ) : paginatedUsers.length === 0 ? (
           <div className="px-4 py-12 text-center">
             <Users size={34} className="mx-auto text-slate-300" />
             <p className="mt-3 font-medium text-slate-700">No users found</p>
@@ -543,6 +450,7 @@ export default function UserManagement() {
                         {user.email}
                       </p>
                     </div>
+
                     <button
                       type="button"
                       onClick={() =>
@@ -550,6 +458,7 @@ export default function UserManagement() {
                       }
                       className="rounded-lg border border-slate-200 p-2 text-slate-600"
                       aria-label={`Actions for ${user.name}`}
+                      aria-expanded={openMenuId === user.id}
                     >
                       <MoreHorizontal size={18} />
                     </button>
@@ -561,54 +470,26 @@ export default function UserManagement() {
                     >
                       {user.role}
                     </span>
+
                     <span
                       className={`rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(user.status)}`}
                     >
                       {user.status}
                     </span>
                   </div>
+
                   <p className="text-xs text-slate-400">
                     Created {formatDate(user.createdAt)}
                   </p>
 
                   {openMenuId === user.id && (
-                    <div className="grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2">
+                    <div className="rounded-lg bg-slate-50 p-2">
                       <button
                         type="button"
-                        onClick={() => openUserAction(user, 'details')}
-                        className="rounded-md px-2 py-2 text-left text-xs text-slate-700 hover:bg-white"
+                        onClick={() => openDetails(user)}
+                        className="w-full rounded-md px-2 py-2 text-left text-xs text-slate-700 hover:bg-white"
                       >
                         View Details
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openUserAction(user, 'edit')}
-                        className="rounded-md px-2 py-2 text-left text-xs text-slate-700 hover:bg-white"
-                      >
-                        Edit User
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openUserAction(user, 'role')}
-                        className="rounded-md px-2 py-2 text-left text-xs text-slate-700 hover:bg-white"
-                      >
-                        Change Role
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleResetPassword(user)}
-                        className="rounded-md px-2 py-2 text-left text-xs text-slate-700 hover:bg-white"
-                      >
-                        Reset Password
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => toggleUserStatus(user)}
-                        className="col-span-2 rounded-md px-2 py-2 text-left text-xs font-medium text-red-600 hover:bg-white"
-                      >
-                        {user.status === 'Deactivated'
-                          ? 'Activate User'
-                          : 'Deactivate User'}
                       </button>
                     </div>
                   )}
@@ -629,17 +510,21 @@ export default function UserManagement() {
                     <th className="px-4 py-3 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
+
                 <tbody className="divide-y divide-slate-100">
                   {paginatedUsers.map((user, index) => (
                     <tr key={user.id} className="transition hover:bg-slate-50/70">
                       <td className="px-4 py-4 text-slate-400">
                         {(safeCurrentPage - 1) * pageSize + index + 1}
                       </td>
+
                       <td className="px-4 py-4">
                         <p className="font-semibold text-slate-900">{user.name}</p>
                         <p className="mt-1 text-xs text-slate-400">{user.id}</p>
                       </td>
+
                       <td className="px-4 py-4 text-slate-600">{user.email}</td>
+
                       <td className="px-4 py-4">
                         <span
                           className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${getRoleStyle(user.role)}`}
@@ -647,6 +532,7 @@ export default function UserManagement() {
                           {user.role}
                         </span>
                       </td>
+
                       <td className="px-4 py-4">
                         <span
                           className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(user.status)}`}
@@ -655,9 +541,11 @@ export default function UserManagement() {
                           {user.status}
                         </span>
                       </td>
+
                       <td className="whitespace-nowrap px-4 py-4 text-slate-600">
                         {formatDate(user.createdAt)}
                       </td>
+
                       <td className="relative px-4 py-4 text-right">
                         <button
                           type="button"
@@ -675,42 +563,11 @@ export default function UserManagement() {
                           <div className="absolute right-8 top-12 z-20 w-48 rounded-xl border border-slate-200 bg-white p-1.5 text-left shadow-xl">
                             <button
                               type="button"
-                              onClick={() => openUserAction(user, 'details')}
+                              onClick={() => openDetails(user)}
                               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                             >
-                              <Eye size={15} /> View Details
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openUserAction(user, 'edit')}
-                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                            >
-                              <Pencil size={15} /> Edit User
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleResetPassword(user)}
-                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                            >
-                              <RefreshCw size={15} /> Reset Password
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openUserAction(user, 'role')}
-                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                            >
-                              <ShieldCheck size={15} /> Change Role
-                            </button>
-                            <div className="my-1 border-t border-slate-100" />
-                            <button
-                              type="button"
-                              onClick={() => toggleUserStatus(user)}
-                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 size={15} />
-                              {user.status === 'Deactivated'
-                                ? 'Activate User'
-                                : 'Deactivate User'}
+                              <Eye size={15} />
+                              View Details
                             </button>
                           </div>
                         )}
@@ -730,6 +587,7 @@ export default function UserManagement() {
             {Math.min(safeCurrentPage * pageSize, filteredUsers.length)} of{' '}
             {filteredUsers.length} users
           </p>
+
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-xs text-slate-500">
               Rows per page
@@ -747,6 +605,7 @@ export default function UserManagement() {
                 <option value={20}>20</option>
               </select>
             </label>
+
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -756,9 +615,11 @@ export default function UserManagement() {
               >
                 Previous
               </button>
+
               <span className="min-w-16 text-center text-xs text-slate-500">
                 Page {safeCurrentPage} of {totalPages}
               </span>
+
               <button
                 type="button"
                 disabled={safeCurrentPage >= totalPages}
@@ -772,11 +633,138 @@ export default function UserManagement() {
         </div>
       </section>
 
-      {modalMode && (
+      {isInviteModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeModal()
+            if (event.target === event.currentTarget) closeInviteModal()
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invite-modal-title"
+            className="my-auto w-full max-w-lg rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5 sm:p-6">
+              <div>
+                <h2 id="invite-modal-title" className="text-xl font-bold text-slate-900">
+                  Invite New User
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Send an invitation to join InfraTrack.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeInviteModal}
+                disabled={isInviting}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40"
+                aria-label="Close invitation form"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleInvite} className="space-y-5 p-5 sm:p-6">
+              <div>
+                <label
+                  htmlFor="invite-email"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Email Address
+                </label>
+                <input
+                  id="invite-email"
+                  type="email"
+                  required
+                  maxLength={255}
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  placeholder="Enter user's email address"
+                  disabled={isInviting}
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="invite-role"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Assign Role
+                </label>
+                <select
+                  id="invite-role"
+                  value={inviteRole}
+                  onChange={(event) =>
+                    setInviteRole(event.target.value as InvitationRoleName)
+                  }
+                  disabled={isInviting}
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 disabled:opacity-60"
+                >
+                  {invitationRoles.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">
+                The invited person will receive an email with a secure link. They can use
+                it to create their account and set their password. The invitation expires
+                after seven days.
+              </div>
+
+              {formError && (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+                >
+                  {formError}
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse justify-end gap-2 border-t border-slate-100 pt-4 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={closeInviteModal}
+                  disabled={isInviting}
+                  className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isInviting}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isInviting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Sending Invitation...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={17} />
+                      Send Invitation
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {selectedUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeDetails()
           }}
         >
           <section
@@ -788,20 +776,14 @@ export default function UserManagement() {
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5 sm:p-6">
               <div>
                 <h2 id="user-modal-title" className="text-xl font-bold text-slate-900">
-                  {modalMode === 'invite' && 'Invite New User'}
-                  {modalMode === 'edit' && 'Edit User Details'}
-                  {modalMode === 'role' && 'Change User Role'}
-                  {modalMode === 'details' && 'User Details'}
+                  User Details
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {modalMode === 'invite'
-                    ? 'Send an invitation with an assigned role.'
-                    : 'Review or update this user account.'}
-                </p>
+                <p className="mt-1 text-sm text-slate-500">Review this user account.</p>
               </div>
+
               <button
                 type="button"
-                onClick={closeModal}
+                onClick={closeDetails}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Close dialog"
               >
@@ -809,165 +791,59 @@ export default function UserManagement() {
               </button>
             </div>
 
-            {modalMode === 'details' && selectedUser ? (
-              <div className="space-y-4 p-5 sm:p-6">
-                <div>
-                  <p className="text-xs text-slate-400">Full Name</p>
-                  <p className="mt-1 font-semibold text-slate-900">{selectedUser.name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Email</p>
-                  <p className="mt-1 break-all text-sm text-slate-700">
-                    {selectedUser.email}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">User ID</p>
-                  <p className="mt-1 text-sm text-slate-700">{selectedUser.id}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Role</p>
-                  <span
-                    className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getRoleStyle(selectedUser.role)}`}
-                  >
-                    {selectedUser.role}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Account Status</p>
-                  <span
-                    className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(selectedUser.status)}`}
-                  >
-                    {selectedUser.status}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400">Created At</p>
-                  <p className="mt-1 text-sm text-slate-700">
-                    {formatDate(selectedUser.createdAt)}
-                  </p>
-                </div>
-                <div className="flex justify-end border-t border-slate-100 pt-4">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-                  >
-                    Close
-                  </button>
-                </div>
+            <div className="space-y-4 p-5 sm:p-6">
+              <div>
+                <p className="text-xs text-slate-400">Full Name</p>
+                <p className="mt-1 font-semibold text-slate-900">{selectedUser.name}</p>
               </div>
-            ) : (
-              <form
-                onSubmit={
-                  modalMode === 'invite'
-                    ? handleInvite
-                    : modalMode === 'edit'
-                      ? handleEdit
-                      : handleRoleChange
-                }
-              >
-                <div className="space-y-5 p-5 sm:p-6">
-                  {(modalMode === 'invite' || modalMode === 'edit') && (
-                    <>
-                      <div className="space-y-2">
-                        <label
-                          htmlFor="user-name"
-                          className="block text-sm font-semibold text-slate-700"
-                        >
-                          Full Name <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          id="user-name"
-                          value={name}
-                          onChange={(event) => setName(event.target.value)}
-                          maxLength={120}
-                          required
-                          placeholder="Enter full name"
-                          className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label
-                          htmlFor="user-email"
-                          className="block text-sm font-semibold text-slate-700"
-                        >
-                          Email Address <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          id="user-email"
-                          type="email"
-                          value={email}
-                          onChange={(event) => setEmail(event.target.value)}
-                          maxLength={255}
-                          required
-                          placeholder="name@example.com"
-                          className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                        />
-                      </div>
-                    </>
-                  )}
 
-                  {(modalMode === 'invite' || modalMode === 'role') && (
-                    <div className="space-y-2">
-                      <label
-                        htmlFor="user-role"
-                        className="block text-sm font-semibold text-slate-700"
-                      >
-                        Assign Role <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        id="user-role"
-                        value={selectedRole}
-                        onChange={(event) =>
-                          setSelectedRole(event.target.value as ManagedRole)
-                        }
-                        className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                      >
-                        {roles.map((role) => (
-                          <option key={role}>{role}</option>
-                        ))}
-                      </select>
-                      {modalMode === 'invite' && (
-                        <p className="text-xs text-slate-400">
-                          The invited user receives this role after accepting the
-                          invitation.
-                        </p>
-                      )}
-                    </div>
-                  )}
+              <div>
+                <p className="text-xs text-slate-400">Email</p>
+                <p className="mt-1 break-all text-sm text-slate-700">
+                  {selectedUser.email}
+                </p>
+              </div>
 
-                  {formError && (
-                    <p
-                      role="alert"
-                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
-                    >
-                      {formError}
-                    </p>
-                  )}
-                </div>
+              <div>
+                <p className="text-xs text-slate-400">User ID</p>
+                <p className="mt-1 break-all text-sm text-slate-700">{selectedUser.id}</p>
+              </div>
 
-                <div className="flex flex-col-reverse gap-3 border-t border-slate-200 p-5 sm:flex-row sm:justify-end sm:p-6">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                  >
-                    {modalMode === 'invite'
-                      ? 'Create Invitation'
-                      : modalMode === 'edit'
-                        ? 'Save Changes'
-                        : 'Update Role'}
-                  </button>
-                </div>
-              </form>
-            )}
+              <div>
+                <p className="text-xs text-slate-400">Role</p>
+                <span
+                  className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getRoleStyle(selectedUser.role)}`}
+                >
+                  {selectedUser.role}
+                </span>
+              </div>
+
+              <div>
+                <p className="text-xs text-slate-400">Account Status</p>
+                <span
+                  className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusStyle(selectedUser.status)}`}
+                >
+                  {selectedUser.status}
+                </span>
+              </div>
+
+              <div>
+                <p className="text-xs text-slate-400">Created At</p>
+                <p className="mt-1 text-sm text-slate-700">
+                  {formatDate(selectedUser.createdAt)}
+                </p>
+              </div>
+
+              <div className="flex justify-end border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={closeDetails}
+                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </section>
         </div>
       )}

@@ -1,5 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useRolePreview } from '#/features/navigation/RolePreviewContext'
+import { createFileRoute, useRouteContext } from '@tanstack/react-router'
+
 import AdminDashboard from '#/features/dashboard/components/AdminDashboard'
 import AssetManagerDashboard from '#/features/dashboard/components/AssetManagerDashboard'
 import TechnicianDashboard from '#/features/dashboard/components/TechnicianDashboard'
@@ -10,9 +10,11 @@ export const Route = createFileRoute('/_app/')({
 })
 
 function RoleBasedDashboard() {
-  const { role } = useRolePreview()
+  const { authenticatedUser } = useRouteContext({
+    from: '/_app',
+  })
 
-  switch (role) {
+  switch (authenticatedUser.role) {
     case 'Administrator':
       return <AdminDashboard />
 
@@ -26,6 +28,6 @@ function RoleBasedDashboard() {
       return <ViewerAuditorDashboard />
 
     default:
-      return <AdminDashboard />
+      return null
   }
 }

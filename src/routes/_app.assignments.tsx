@@ -13,6 +13,13 @@ export const Route = createFileRoute('/_app/assignments')({
 
 function AssignmentPage() {
   const { assetId, action } = Route.useSearch()
+  const { authenticatedUser } = Route.useRouteContext()
 
-  return <AssignmentManagement initialAssetId={assetId} initialAction={action} />
+  return (
+    <AssignmentManagement
+      initialAssetId={assetId}
+      initialAction={action}
+      userRole={authenticatedUser.role}
+    />
+  )
 }

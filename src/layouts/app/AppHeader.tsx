@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { ChevronDown, Menu, UserRound } from 'lucide-react'
+
 import ThemeToggle from '#/components/ThemeToggle'
 import type { AppRole } from '#/features/navigation/navigation.config'
 
 interface AppHeaderProps {
   role: AppRole
+  user: {
+    fullName: string
+    email: string
+  }
   onMenuClick: () => void
 }
 
@@ -19,9 +24,19 @@ const pageTitles: Record<string, string> = {
   '/audit-logs': 'Audit Logs',
   '/settings': 'Settings',
   '/profile': 'My Profile',
+  '/my-assets': 'My Assigned Assets',
 }
 
-export default function AppHeader({ role, onMenuClick }: AppHeaderProps) {
+function getInitials(fullName: string) {
+  return fullName
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('')
+}
+
+export default function AppHeader({ role, user, onMenuClick }: AppHeaderProps) {
   const [profileOpenPath, setProfileOpenPath] = useState<string | null>(null)
   const profileRef = useRef<HTMLDivElement>(null)
 
@@ -91,12 +106,12 @@ export default function AppHeader({ role, onMenuClick }: AppHeaderProps) {
             className="flex items-center gap-2 rounded-lg p-1.5 transition hover:bg-[var(--muted)]"
           >
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
-              AR
+              {getInitials(user.fullName)}
             </div>
 
             <div className="hidden text-left sm:block">
               <p className="text-sm font-semibold text-[var(--foreground)]">
-                Abdul Rahim
+                {user.fullName}
               </p>
               <p className="text-xs text-[var(--muted-foreground)]">{role}</p>
             </div>
@@ -115,10 +130,10 @@ export default function AppHeader({ role, onMenuClick }: AppHeaderProps) {
               className="absolute right-0 top-full z-[60] mt-2 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-xl"
             >
               <div className="border-b border-[var(--border)] p-4">
-                <p className="font-semibold text-[var(--foreground)]">Abdul Rahim</p>
+                <p className="font-semibold text-[var(--foreground)]">{user.fullName}</p>
 
                 <p className="mt-1 break-all text-sm text-[var(--muted-foreground)]">
-                  rahim@example.test
+                  {user.email}
                 </p>
 
                 <p className="mt-2 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
@@ -128,7 +143,7 @@ export default function AppHeader({ role, onMenuClick }: AppHeaderProps) {
 
               <div className="p-2">
                 <Link
-                  to={'/profile' as never}
+                  to="/profile"
                   role="menuitem"
                   onClick={() => setProfileOpenPath(null)}
                   className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--muted)]"

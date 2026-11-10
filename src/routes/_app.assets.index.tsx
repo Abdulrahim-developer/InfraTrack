@@ -1,13 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouteContext } from '@tanstack/react-router'
 import AssetInventory from '#/features/assets/components/AssetInventory'
-import { useRolePreview } from '#/features/navigation/RolePreviewContext'
 
 export const Route = createFileRoute('/_app/assets/')({
   component: AssetInventoryPage,
 })
 
 function AssetInventoryPage() {
-  const { role } = useRolePreview()
+  const { authenticatedUser } = useRouteContext({ from: '/_app' })
 
-  return <AssetInventory role={role} />
+  return <AssetInventory role={authenticatedUser.role} />
 }

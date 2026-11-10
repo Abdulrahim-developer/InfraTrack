@@ -16,7 +16,7 @@ import { Link } from '@tanstack/react-router'
 
 import type { AppRole } from '#/features/navigation/navigation.config'
 import type { AssetStatus, AssetType } from '#/features/dashboard/data/dashboard.mock'
-import { useAppData } from '#/features/dashboard/context/AppDataContext'
+import { createAsset } from '#/features/assets/server/create-asset'
 
 interface RegisterAssetProps {
   role: AppRole
@@ -33,65 +33,71 @@ const labelStyles = 'mb-2 block text-sm font-semibold text-slate-700 dark:!text-
 
 export default function RegisterAsset({ role }: RegisterAssetProps) {
   const canManageAssets = role === 'Administrator' || role === 'Asset Manager'
-  const { assets, setAssets } = useAppData()
 
   const [assetName, setAssetName] = useState('')
   const [assetType, setAssetType] = useState<AssetType | ''>('')
   const [serialNumber, setSerialNumber] = useState('')
   const [location, setLocation] = useState('')
   const [status, setStatus] = useState<AssetStatus>('Active')
-  const [submitted, setSubmitted] = useState(false)
-  const [serialNumberError, setSerialNumberError] = useState('')
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const [submitted, setSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!canManageAssets || !assetType) return
+    if (!canManageAssets || !assetType || isSubmitting) return
 
-    const normalizedSerialNumber = serialNumber.trim().toLowerCase()
+    setIsSubmitting(true)
+    setSubmitted(false)
+    setErrorMessage('')
 
-    const duplicateAsset = assets.find(
-      (asset) => asset.serialNumber.trim().toLowerCase() === normalizedSerialNumber,
-    )
+    try {
+      const result = await createAsset({
+        data: {
+          assetName: assetName.trim(),
+          assetType,
+          serialNumber: serialNumber.trim(),
+          location: location.trim(),
+          status,
+        },
+      })
 
-    if (duplicateAsset) {
-      setSerialNumberError(
-        'This serial number is already registered. Please enter a unique serial number.',
+      if (result.success) {
+        setAssetName('')
+        setAssetType('')
+        setSerialNumber('')
+        setLocation('')
+        setStatus('Active')
+        setSubmitted(true)
+      }
+    } catch (error) {
+      console.error('Asset registration failed:', error)
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to register asset. Please try again.',
       )
-      setSubmitted(false)
-      return
+    } finally {
+      setIsSubmitting(false)
     }
-    const newAsset = {
-      id: crypto.randomUUID(),
-      name: assetName.trim(),
-      type: assetType,
-      serialNumber: serialNumber.trim(),
-      location: location.trim(),
-      status,
-      assignedTo: null,
-      createdAt: new Date().toISOString(),
-    }
-
-    setAssets((previousAssets) => [newAsset, ...previousAssets])
-
-    setAssetName('')
-    setAssetType('')
-    setSerialNumber('')
-    setLocation('')
-    setStatus('Active')
-    setSerialNumberError('')
-    setSubmitted(true)
   }
+
   if (!canManageAssets) {
     return (
       <main className="mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <ShieldCheck size={36} className="mx-auto text-slate-400" aria-hidden="true" />
+
         <h1 className="mt-4 text-xl font-bold text-slate-900 dark:text-white">
           Access restricted
         </h1>
+
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           You do not have permission to register infrastructure assets.
         </p>
+
         <Link
           to="/assets"
           className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-800"
@@ -113,11 +119,15 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
         <Link to="/" className="hover:text-blue-600">
           Dashboard
         </Link>
+
         <span>/</span>
+
         <Link to="/assets" className="hover:text-blue-600">
           Asset Inventory
         </Link>
+
         <span>/</span>
+
         <span className="font-medium text-slate-700 dark:!text-slate-200">
           Register New Asset
         </span>
@@ -128,6 +138,7 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">
           Register New Asset
         </h1>
+
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Add a new infrastructure asset to the inventory.
         </p>
@@ -140,10 +151,12 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
             <div className="flex size-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
               <Boxes size={23} aria-hidden="true" />
             </div>
+
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
                 Asset Details
               </h2>
+
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Enter the required asset information.
               </p>
@@ -157,6 +170,7 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                 <label htmlFor="assetName" className={labelStyles}>
                   Asset Name <span className="text-red-500">*</span>
                 </label>
+
                 <input
                   id="assetName"
                   name="assetName"
@@ -166,6 +180,7 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                   onChange={(event) => {
                     setAssetName(event.target.value)
                     setSubmitted(false)
+                    setErrorMessage('')
                   }}
                   placeholder="e.g. Cisco Router 2901"
                   className={inputStyles}
@@ -177,12 +192,14 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                 <label htmlFor="assetType" className={labelStyles}>
                   Asset Type <span className="text-red-500">*</span>
                 </label>
+
                 <div className="relative">
                   <Server
                     size={17}
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                     aria-hidden="true"
                   />
+
                   <select
                     id="assetType"
                     name="assetType"
@@ -191,10 +208,12 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                     onChange={(event) => {
                       setAssetType(event.target.value as AssetType | '')
                       setSubmitted(false)
+                      setErrorMessage('')
                     }}
                     className={`${inputStyles} pl-10`}
                   >
                     <option value="">Select asset type</option>
+
                     {assetTypes.map((type) => (
                       <option key={type} value={type}>
                         {type}
@@ -209,31 +228,21 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                 <label htmlFor="serialNumber" className={labelStyles}>
                   Serial Number <span className="text-red-500">*</span>
                 </label>
+
                 <input
                   id="serialNumber"
                   name="serialNumber"
                   required
                   maxLength={100}
                   value={serialNumber}
-                  aria-invalid={Boolean(serialNumberError)}
-                  aria-describedby={serialNumberError ? 'serialNumberError' : undefined}
                   onChange={(event) => {
                     setSerialNumber(event.target.value)
-                    setSerialNumberError('')
                     setSubmitted(false)
+                    setErrorMessage('')
                   }}
                   placeholder="e.g. CSR2901-7843"
                   className={inputStyles}
                 />
-                {serialNumberError && (
-                  <p
-                    id="serialNumberError"
-                    role="alert"
-                    className="mt-2 text-sm text-red-600 dark:text-red-400"
-                  >
-                    {serialNumberError}
-                  </p>
-                )}
               </div>
 
               {/* Location */}
@@ -241,21 +250,24 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                 <label htmlFor="location" className={labelStyles}>
                   Location <span className="text-red-500">*</span>
                 </label>
+
                 <div className="relative">
                   <MapPin
                     size={17}
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                     aria-hidden="true"
                   />
+
                   <input
                     id="location"
                     name="location"
                     required
-                    maxLength={200}
+                    maxLength={150}
                     value={location}
                     onChange={(event) => {
                       setLocation(event.target.value)
                       setSubmitted(false)
+                      setErrorMessage('')
                     }}
                     placeholder="e.g. Data Center - Rack A1"
                     className={`${inputStyles} pl-10`}
@@ -268,6 +280,7 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                 <label htmlFor="status" className={labelStyles}>
                   Status <span className="text-red-500">*</span>
                 </label>
+
                 <select
                   id="status"
                   name="status"
@@ -276,6 +289,7 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                   onChange={(event) => {
                     setStatus(event.target.value as AssetStatus)
                     setSubmitted(false)
+                    setErrorMessage('')
                   }}
                   className={inputStyles}
                 >
@@ -294,22 +308,34 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
                   className="shrink-0 text-slate-400"
                   aria-hidden="true"
                 />
+
                 <p className="text-xs leading-5 text-slate-500 dark:text-slate-300">
                   Asset ID and timestamps will be generated by the system.
                 </p>
               </div>
             </div>
 
+            {/* Success message */}
             {submitted && (
               <div
                 role="status"
                 className="mt-6 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200"
               >
+                <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
+
+                <p>Asset registered successfully! It has been saved to the database.</p>
+              </div>
+            )}
+
+            {/* Error message */}
+            {errorMessage && (
+              <div
+                role="alert"
+                className="mt-6 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+              >
                 <Info size={18} className="mt-0.5 shrink-0" />
-                <p>
-                  Asset registered successfully! It has been added to the shared Asset
-                  Inventory.
-                </p>
+
+                <p>{errorMessage}</p>
               </div>
             )}
 
@@ -323,10 +349,12 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
 
               <button
                 type="submit"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                disabled={isSubmitting}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Plus size={18} />
-                Register Asset
+
+                {isSubmitting ? 'Registering...' : 'Register Asset'}
               </button>
             </div>
           </form>
@@ -339,6 +367,7 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
               <div className="flex size-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
                 <Info size={20} aria-hidden="true" />
               </div>
+
               <h2 className="font-bold text-slate-900 dark:text-white">
                 Asset Information
               </h2>
@@ -375,13 +404,16 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
           <section className="rounded-xl border border-blue-100 bg-blue-50/70 p-5 dark:border-blue-900 dark:bg-blue-950/50">
             <div className="flex items-center gap-2">
               <CheckCircle2 size={19} className="text-blue-600 dark:text-blue-400" />
+
               <h2 className="font-bold text-slate-900 dark:text-white">
                 Required Fields
               </h2>
             </div>
+
             <p className="mt-2 text-sm text-[#475569] dark:text-[#dbeafe]">
               The following fields are mandatory:
             </p>
+
             <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-[#334155] dark:text-[#dbeafe]">
               <li>Asset Name</li>
               <li>Asset Type</li>
@@ -395,8 +427,10 @@ export default function RegisterAsset({ role }: RegisterAssetProps) {
           <section className="rounded-xl border border-amber-100 bg-amber-50/70 p-5 dark:border-amber-900 dark:bg-amber-950/40">
             <div className="flex items-center gap-2">
               <Lightbulb size={19} className="text-amber-600 dark:text-amber-400" />
+
               <h2 className="font-bold text-slate-900 dark:text-white">Notes</h2>
             </div>
+
             <ul className="mt-3 list-inside list-disc space-y-2 text-sm leading-5 text-[#44403c] dark:text-[#fef3c7]">
               <li>Use a unique serial number for each asset.</li>
               <li>Set the initial status based on the current condition.</li>

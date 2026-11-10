@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   Archive,
   CalendarClock,
@@ -10,14 +10,14 @@ import {
   X,
 } from 'lucide-react'
 
-import {
-  currentMockTechnicianId,
-  currentMockUserId,
-  type AssetType,
-} from '#/features/dashboard/data/dashboard.mock'
-import { useAppData } from '#/features/dashboard/context/AppDataContext'
+import { listAssets } from '#/features/assets/server/list-assets'
+import { listAssignmentUsers } from '#/features/assignments/server/list-assignment-users'
+import { listAssignments } from '#/features/assignments/server/list-assignments'
+import { createAssignment } from '#/features/assignments/server/create-assignment'
+import { returnAssignment } from '#/features/assignments/server/return-assignment'
 
 type AssignmentStatus = 'Assigned' | 'Returned'
+type AssetType = string
 type RecipientType = 'user' | 'department'
 type AppRole = 'Administrator' | 'Asset Manager' | 'Technician' | 'Viewer/Auditor'
 
@@ -25,50 +25,37 @@ interface AssignmentRecord {
   id: string
   assetId: string
   assignedToUserId: string | null
-  assignedToDepartment?: string | null
+  assignedToDepartment: string | null
   assignedAt: string
   returnedAt: string | null
+  assetName: string
+  assetType: string
+  serialNumber: string | null
+  assignedUserName: string | null
+  assignedUserEmail: string | null
 }
 
-interface MockUser {
+interface AssignmentAsset {
+  id: string
+  name: string
+  type: string
+  serialNumber: string
+  location: string
+  status: string
+}
+
+interface AssignmentUser {
   id: string
   name: string
   email: string
-  role: AppRole
+  accountStatus: string
+  roles: string[]
 }
 
 interface AssignmentManagementProps {
   initialAssetId?: string
   initialAction?: 'view' | 'create'
-}
-
-const assetTypes: AssetType[] = ['Router', 'Server', 'Switch']
-
-const mockUsers: MockUser[] = [
-  {
-    id: currentMockUserId,
-    name: 'Rahim',
-    email: 'rahim@example.test',
-    role: 'Asset Manager',
-  },
-  {
-    id: currentMockTechnicianId,
-    name: 'Karthick',
-    email: 'karthick@example.test',
-    role: 'Technician',
-  },
-]
-
-const mockUserMap = new Map(mockUsers.map((user) => [user.id, user]))
-
-function getUserName(userId: string | null) {
-  if (!userId) return null
-  return mockUserMap.get(userId)?.name ?? 'Other User'
-}
-
-function getUserEmail(userId: string | null) {
-  if (!userId) return null
-  return mockUserMap.get(userId)?.email ?? ''
+  userRole: AppRole
 }
 
 function formatDate(value: string | null) {
@@ -90,20 +77,94 @@ function getTodayDate() {
   return `${year}-${month}-${day}`
 }
 
-function getNextAssignmentId(records: AssignmentRecord[]) {
-  const highestNumber = records.reduce((highest, record) => {
-    const match = record.id.match(/^ASN-(\d+)$/)
-    return match ? Math.max(highest, Number(match[1])) : highest
-  }, 0)
-
-  return `ASN-${String(highestNumber + 1).padStart(4, '0')}`
-}
-
 export default function AssignmentManagement({
   initialAssetId,
   initialAction,
+  userRole,
 }: AssignmentManagementProps) {
-  const { assets, assignments: assignmentRecords, setAssignments } = useAppData()
+  const canManageAssignments =
+    userRole === 'Administrator' || userRole === 'Asset Manager'
+
+  const [assets, setAssets] = useState<AssignmentAsset[]>([])
+  const [assignmentRecords, setAssignmentRecords] = useState<AssignmentRecord[]>([])
+  const [assignmentUsers, setAssignmentUsers] = useState<AssignmentUser[]>([])
+  const [isLoadingData, setIsLoadingData] = useState(true)
+  const [dataLoadError, setDataLoadError] = useState('')
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
+  const [usersLoadError, setUsersLoadError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isReturning, setIsReturning] = useState(false)
+  const [returnError, setReturnError] = useState('')
+
+  async function refreshAssignmentData() {
+    const [assignmentResult, assetResult] = await Promise.all([
+      listAssignments(),
+      listAssets({
+        data: {
+          search: '',
+          type: '',
+          status: 'Active',
+          location: '',
+          page: 1,
+          pageSize: 100,
+        },
+      }),
+    ])
+
+    setAssignmentRecords(
+      assignmentResult.data.map((record) => ({
+        id: record.assignmentId,
+        assetId: record.assetId,
+        assignedToUserId: record.assignedToUserId,
+        assignedToDepartment: record.assignedToDepartment,
+        assignedAt: record.assignedAt,
+        returnedAt: record.returnedAt,
+        assetName: record.assetName,
+        assetType: record.assetType,
+        serialNumber: record.serialNumber,
+        assignedUserName: record.assignedUserName,
+        assignedUserEmail: record.assignedUserEmail,
+      })),
+    )
+
+    setAssets(
+      assetResult.data.map((asset) => ({
+        id: asset.assetId,
+        name: asset.assetName,
+        type: asset.assetType,
+        serialNumber: asset.serialNumber ?? '',
+        location: asset.location ?? '',
+        status: asset.status,
+      })),
+    )
+  }
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadData() {
+      setIsLoadingData(true)
+      setDataLoadError('')
+
+      try {
+        await refreshAssignmentData()
+      } catch (error) {
+        if (isMounted) {
+          setDataLoadError(
+            error instanceof Error ? error.message : 'Unable to load assignment data.',
+          )
+        }
+      } finally {
+        if (isMounted) setIsLoadingData(false)
+      }
+    }
+
+    void loadData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('All Types')
@@ -113,7 +174,7 @@ export default function AssignmentManagement({
   const [pageSize, setPageSize] = useState(5)
 
   const [isModalOpen, setIsModalOpen] = useState(
-    Boolean(initialAssetId && initialAction === 'create'),
+    Boolean(canManageAssignments && initialAssetId && initialAction === 'create'),
   )
   const [recipientType, setRecipientType] = useState<RecipientType>('user')
   const [selectedAssetId, setSelectedAssetId] = useState(initialAssetId ?? '')
@@ -126,31 +187,49 @@ export default function AssignmentManagement({
   const [successMessage, setSuccessMessage] = useState('')
   const [assignmentToReturn, setAssignmentToReturn] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (!isModalOpen || !canManageAssignments) return
+
+    let isMounted = true
+
+    async function loadAssignmentUsers() {
+      setIsLoadingUsers(true)
+      setUsersLoadError('')
+
+      try {
+        const result = await listAssignmentUsers()
+        if (isMounted) setAssignmentUsers(result.data)
+      } catch (error) {
+        if (isMounted) {
+          setUsersLoadError(
+            error instanceof Error ? error.message : 'Unable to load active users.',
+          )
+        }
+      } finally {
+        if (isMounted) setIsLoadingUsers(false)
+      }
+    }
+
+    void loadAssignmentUsers()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isModalOpen, canManageAssignments])
+
   const assignmentRows = useMemo(
     () =>
-      assignmentRecords.flatMap((assignment) => {
-        const asset = assets.find((item) => item.id === assignment.assetId)
-
-        if (!asset) return []
-
-        const assignedUser = getUserName(assignment.assignedToUserId)
-        const assignedEmail = getUserEmail(assignment.assignedToUserId)
-        const status: AssignmentStatus = assignment.returnedAt ? 'Returned' : 'Assigned'
-
-        return [
-          {
-            ...assignment,
-            assetName: asset.name,
-            assetType: asset.type,
-            assetShortId: asset.id.slice(0, 8).toUpperCase(),
-            serialNumber: asset.serialNumber,
-            assignedUser: assignedUser ?? assignment.assignedToDepartment ?? 'Unassigned',
-            assignedEmail,
-            status,
-          },
-        ]
-      }),
-    [assignmentRecords, assets],
+      assignmentRecords.map((assignment) => ({
+        ...assignment,
+        assetShortId: assignment.assetId.slice(0, 8).toUpperCase(),
+        assignedUser:
+          assignment.assignedUserName ??
+          assignment.assignedToDepartment ??
+          'Unknown recipient',
+        assignedEmail: assignment.assignedUserEmail ?? '',
+        status: (assignment.returnedAt ? 'Returned' : 'Assigned') as AssignmentStatus,
+      })),
+    [assignmentRecords],
   )
 
   const summary = useMemo(() => {
@@ -181,7 +260,7 @@ export default function AssignmentManagement({
         item.assetName.toLowerCase().includes(query) ||
         item.assetShortId.toLowerCase().includes(query) ||
         item.assetId.toLowerCase().includes(query) ||
-        item.serialNumber.toLowerCase().includes(query) ||
+        (item.serialNumber ?? '').toLowerCase().includes(query) ||
         item.assignedUser.toLowerCase().includes(query) ||
         (item.assignedEmail ?? '').toLowerCase().includes(query)
 
@@ -211,10 +290,11 @@ export default function AssignmentManagement({
 
   const users = [...new Set(assignmentRows.map((item) => item.assignedUser))]
   const availableAssets = assets.filter((asset) => asset.status === 'Active')
-  const availableRoles = [...new Set(mockUsers.map((user) => user.role))]
+  const assetTypes: AssetType[] = [...new Set(assets.map((asset) => asset.type))].sort()
+  const availableRoles = [...new Set(assignmentUsers.flatMap((user) => user.roles))]
 
-  const filteredUsers = mockUsers.filter((user) => {
-    const matchesRole = user.role === selectedRole
+  const filteredUsers = assignmentUsers.filter((user) => {
+    const matchesRole = Boolean(selectedRole) && user.roles.includes(selectedRole)
     const query = userSearch.trim().toLowerCase()
 
     const matchesSearch =
@@ -245,6 +325,8 @@ export default function AssignmentManagement({
   }
 
   function openAssignmentModal() {
+    if (!canManageAssignments) return
+
     resetForm()
     setSuccessMessage('')
     setIsModalOpen(true)
@@ -255,33 +337,38 @@ export default function AssignmentManagement({
     setFormError('')
   }
 
-  function handleReturnAssignment() {
-    if (!assignmentToReturn) return
+  async function handleReturnAssignment() {
+    if (!canManageAssignments || !assignmentToReturn || isReturning) return
 
-    const assignmentId = assignmentToReturn
+    setIsReturning(true)
+    setReturnError('')
+    setSuccessMessage('')
 
-    const assignment = assignmentRecords.find((record) => record.id === assignmentId)
+    try {
+      const result = await returnAssignment({
+        data: {
+          assignmentId: assignmentToReturn,
+        },
+      })
 
-    if (!assignment || assignment.returnedAt) {
+      await refreshAssignmentData()
+
       setAssignmentToReturn(null)
-      return
+      setSuccessMessage(result.message)
+    } catch (error) {
+      setReturnError(
+        error instanceof Error ? error.message : 'Unable to return this asset.',
+      )
+    } finally {
+      setIsReturning(false)
     }
-
-    const returnedAt = new Date().toISOString()
-
-    setAssignments((previousRecords) =>
-      previousRecords.map((record) =>
-        record.id === assignmentId && !record.returnedAt
-          ? { ...record, returnedAt }
-          : record,
-      ),
-    )
-
-    setSuccessMessage(`Assignment ${assignmentId} marked as returned.`)
-    setAssignmentToReturn(null)
   }
-  function handleCreateAssignment(event: FormEvent<HTMLFormElement>) {
+
+  async function handleCreateAssignment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (!canManageAssignments) return
+
     setFormError('')
     setSuccessMessage('')
 
@@ -312,33 +399,47 @@ export default function AssignmentManagement({
       return
     }
 
-    const currentAssignment = assignmentRecords.filter(
+    const currentAssignment = assignmentRecords.find(
       (record) => record.assetId === selectedAssetId && !record.returnedAt,
     )
 
-    if (currentAssignment.length > 0) {
+    if (currentAssignment) {
       setFormError(
         'This asset is currently assigned. Return it before creating a new assignment.',
       )
       return
     }
 
-    const newAssignment: AssignmentRecord = {
-      id: getNextAssignmentId(assignmentRecords),
-      assetId: selectedAssetId,
-      assignedToUserId: recipientType === 'user' ? selectedUserId : null,
-      assignedToDepartment: recipientType === 'department' ? departmentName.trim() : null,
-      assignedAt: new Date(`${assignmentDate}T00:00:00`).toISOString(),
-      returnedAt: null,
+    setIsSubmitting(true)
+
+    try {
+      const result = await createAssignment({
+        data: {
+          assetId: selectedAssetId,
+          recipientType,
+          ...(recipientType === 'user'
+            ? { userId: selectedUserId }
+            : { departmentName: departmentName.trim() }),
+          assignmentDate,
+        },
+      })
+
+      await refreshAssignmentData()
+
+      setSuccessMessage(
+        `${result.message} Assignment ID: ${result.data.assignmentId.slice(0, 8).toUpperCase()}`,
+      )
+
+      closeAssignmentModal()
+      resetForm()
+      clearFilters()
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : 'Unable to create assignment.',
+      )
+    } finally {
+      setIsSubmitting(false)
     }
-
-    setAssignments((previousRecords) => [newAssignment, ...previousRecords])
-
-    setSuccessMessage(`Assignment ${newAssignment.id} created successfully.`)
-
-    closeAssignmentModal()
-    resetForm()
-    clearFilters()
   }
 
   const summaryCards = [
@@ -381,14 +482,16 @@ export default function AssignmentManagement({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openAssignmentModal}
-          className="inline-flex w-fit items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          <span className="text-lg leading-none">+</span>
-          New Assignment
-        </button>
+        {canManageAssignments && (
+          <button
+            type="button"
+            onClick={openAssignmentModal}
+            className="inline-flex w-fit items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            <span className="text-lg leading-none">+</span>
+            New Assignment
+          </button>
+        )}
       </section>
 
       {successMessage && (
@@ -407,6 +510,19 @@ export default function AssignmentManagement({
             <X size={16} />
           </button>
         </div>
+      )}
+
+      {dataLoadError && (
+        <p
+          role="alert"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {dataLoadError}
+        </p>
+      )}
+
+      {isLoadingData && (
+        <p className="text-sm text-slate-500">Loading assignment records...</p>
       )}
 
       <section
@@ -545,7 +661,9 @@ export default function AssignmentManagement({
                 <article key={item.id} className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-blue-600">{item.id}</p>
+                      <p className="text-xs font-medium text-blue-600">
+                        {item.id.slice(0, 8).toUpperCase()}
+                      </p>
                       <h3 className="mt-1 font-semibold text-slate-900">
                         {item.assetName}
                       </h3>
@@ -585,11 +703,16 @@ export default function AssignmentManagement({
                       <p className="mt-1 text-slate-700">{formatDate(item.returnedAt)}</p>
                     </div>
                   </div>
-                  {!item.returnedAt && (
+
+                  {canManageAssignments && !item.returnedAt && (
                     <button
                       type="button"
-                      onClick={() => setAssignmentToReturn(item.id)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-50"
+                      disabled={isReturning}
+                      onClick={() => {
+                        setReturnError('')
+                        setAssignmentToReturn(item.id)
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <RotateCcw size={15} />
                       Return Asset
@@ -619,7 +742,9 @@ export default function AssignmentManagement({
                       <td className="px-4 py-4 text-slate-400">
                         {(safeCurrentPage - 1) * pageSize + index + 1}
                       </td>
-                      <td className="px-4 py-4 font-medium text-blue-600">{item.id}</td>
+                      <td className="px-4 py-4 font-medium text-blue-600">
+                        {item.id.slice(0, 8).toUpperCase()}
+                      </td>
                       <td className="px-4 py-4">
                         <div className="font-medium text-slate-900">{item.assetName}</div>
                         <div className="mt-1 text-xs text-slate-400">
@@ -661,11 +786,15 @@ export default function AssignmentManagement({
                           )}
                           {item.status}
                         </span>
-                        {!item.returnedAt && (
+                        {canManageAssignments && !item.returnedAt && (
                           <button
                             type="button"
-                            onClick={() => setAssignmentToReturn(item.id)}
-                            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-200 px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50"
+                            disabled={isReturning}
+                            onClick={() => {
+                              setReturnError('')
+                              setAssignmentToReturn(item.id)
+                            }}
+                            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-200 px-2.5 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <RotateCcw size={13} />
                             Return
@@ -730,7 +859,7 @@ export default function AssignmentManagement({
         </div>
       </section>
 
-      {isModalOpen && (
+      {canManageAssignments && isModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4"
           onMouseDown={(event) => {
@@ -868,7 +997,8 @@ export default function AssignmentManagement({
                           setFormError('')
                         }}
                         required
-                        className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                        disabled={isLoadingUsers || availableRoles.length === 0}
+                        className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                       >
                         <option value="">Choose a role</option>
                         {availableRoles.map((role) => (
@@ -877,6 +1007,21 @@ export default function AssignmentManagement({
                           </option>
                         ))}
                       </select>
+                      {isLoadingUsers && (
+                        <p className="text-xs text-slate-500">Loading active users...</p>
+                      )}
+                      {usersLoadError && (
+                        <p role="alert" className="text-xs text-red-600">
+                          {usersLoadError}
+                        </p>
+                      )}
+                      {!isLoadingUsers &&
+                        !usersLoadError &&
+                        availableRoles.length === 0 && (
+                          <p className="text-xs text-amber-600">
+                            No active users with assigned application roles were found.
+                          </p>
+                        )}
                     </div>
 
                     <div className="space-y-2">
@@ -914,7 +1059,12 @@ export default function AssignmentManagement({
                         id="assignment-user"
                         value={selectedUserId}
                         onChange={(event) => setSelectedUserId(event.target.value)}
-                        disabled={!selectedRole || filteredUsers.length === 0}
+                        disabled={
+                          !selectedRole ||
+                          isLoadingUsers ||
+                          Boolean(usersLoadError) ||
+                          filteredUsers.length === 0
+                        }
                         required
                         className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                       >
@@ -927,11 +1077,14 @@ export default function AssignmentManagement({
                           </option>
                         ))}
                       </select>
-                      {selectedRole && filteredUsers.length === 0 && (
-                        <p className="text-xs text-amber-600">
-                          No users found for this role and search.
-                        </p>
-                      )}
+                      {selectedRole &&
+                        !isLoadingUsers &&
+                        !usersLoadError &&
+                        filteredUsers.length === 0 && (
+                          <p className="text-xs text-amber-600">
+                            No users found for this role and search.
+                          </p>
+                        )}
                       <p className="text-xs text-slate-400">
                         Users are filtered by application role. Search using their name or
                         email.
@@ -997,10 +1150,10 @@ export default function AssignmentManagement({
                 </button>
                 <button
                   type="submit"
-                  disabled={availableAssets.length === 0}
+                  disabled={availableAssets.length === 0 || isSubmitting || isLoadingData}
                   className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Create Assignment
+                  {isSubmitting ? 'Creating...' : 'Create Assignment'}
                 </button>
               </div>
             </form>
@@ -1008,12 +1161,13 @@ export default function AssignmentManagement({
         </div>
       )}
 
-      {assignmentToReturn && (
+      {canManageAssignments && assignmentToReturn && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
+            if (event.target === event.currentTarget && !isReturning) {
               setAssignmentToReturn(null)
+              setReturnError('')
             }
           }}
         >
@@ -1043,27 +1197,41 @@ export default function AssignmentManagement({
                 </p>
 
                 <p className="mt-3 text-sm font-semibold text-slate-700">
-                  Assignment ID: {assignmentToReturn}
+                  Assignment ID: {assignmentToReturn.slice(0, 8).toUpperCase()}
                 </p>
+
+                {returnError && (
+                  <p
+                    role="alert"
+                    className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                  >
+                    {returnError}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setAssignmentToReturn(null)}
-                className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                disabled={isReturning}
+                onClick={() => {
+                  setAssignmentToReturn(null)
+                  setReturnError('')
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
+                disabled={isReturning}
                 onClick={handleReturnAssignment}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RotateCcw size={16} />
-                Confirm Return
+                {isReturning ? 'Returning...' : 'Confirm Return'}
               </button>
             </div>
           </section>

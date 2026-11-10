@@ -1,13 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouteContext } from '@tanstack/react-router'
 import ProfileSettings from '#/features/profile/components/ProfileSettings'
-import { useRolePreview } from '#/features/navigation/RolePreviewContext'
 
 export const Route = createFileRoute('/_app/profile')({
   component: ProfilePage,
 })
 
 function ProfilePage() {
-  const { role } = useRolePreview()
+  const { authenticatedUser } = useRouteContext({ from: '/_app' })
 
-  return <ProfileSettings role={role} />
+  return <ProfileSettings role={authenticatedUser.role} />
 }

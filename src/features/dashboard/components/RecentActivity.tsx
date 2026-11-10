@@ -10,6 +10,26 @@ const activityBadgeStyles = {
   Returned: 'bg-slate-100 text-slate-700',
 }
 
+function formatActivityTimestamp(timestamp: string) {
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(timestamp)
+
+  const date = new Date(hasTimezone ? timestamp : `${timestamp}Z`)
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Invalid date'
+  }
+
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: hasTimezone ? 'Asia/Kolkata' : 'UTC',
+  }).format(date)
+}
+
 export default function RecentActivity() {
   const { activities } = useAppData()
 
@@ -54,7 +74,7 @@ export default function RecentActivity() {
                 >
                   <td className="whitespace-nowrap px-3 py-4 text-xs text-slate-600">
                     <time dateTime={activity.timestamp}>
-                      {new Date(activity.timestamp).toLocaleString()}
+                      {formatActivityTimestamp(activity.timestamp)}
                     </time>
                   </td>
 
