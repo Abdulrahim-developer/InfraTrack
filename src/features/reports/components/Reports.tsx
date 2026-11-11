@@ -115,12 +115,12 @@ function getReportData(
             location: asset.location,
             status: asset.status,
             assignedTo: currentAssignment
-  ? getAssigneeName(
-      currentAssignment.assignedToUserId,
-      currentAssignment.assignedToUserName,
-      currentAssignment.assignedToDepartment,
-    )
-  : 'Unassigned',
+              ? getAssigneeName(
+                  currentAssignment.assignedToUserId,
+                  currentAssignment.assignedToUserName,
+                  currentAssignment.assignedToDepartment,
+                )
+              : 'Unassigned',
           }
         }),
       }
@@ -156,11 +156,11 @@ function getReportData(
           return {
             assignmentId: assignment.id,
             assetName: asset?.name ?? 'Unknown asset',
-           assignedTo: getAssigneeName(
-  assignment.assignedToUserId,
-  assignment.assignedToUserName,
-  assignment.assignedToDepartment,
-),
+            assignedTo: getAssigneeName(
+              assignment.assignedToUserId,
+              assignment.assignedToUserName,
+              assignment.assignedToDepartment,
+            ),
             assignedAt: formatDate(assignment.assignedAt),
             returnedAt: formatDate(assignment.returnedAt),
             assignmentStatus: assignment.returnedAt ? 'Returned' : 'Current',
@@ -186,10 +186,7 @@ function getReportData(
             assetName: asset?.name ?? 'Unknown asset',
             maintenanceType: record.maintenanceType,
             description: record.description,
-           performedBy: getAssigneeName(
-  record.performedBy,
-  record.performedByName,
-),
+            performedBy: getAssigneeName(record.performedBy, record.performedByName),
             performedAt: formatDate(record.performedAt),
           }
         }),

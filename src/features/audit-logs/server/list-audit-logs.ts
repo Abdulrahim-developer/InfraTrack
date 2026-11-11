@@ -1,4 +1,3 @@
-
 import { createServerFn } from '@tanstack/react-start'
 import { aliasedTable, eq, inArray, sql } from 'drizzle-orm'
 
@@ -79,9 +78,7 @@ export const listAuditLogs = createServerFn({
   const involvedUserIds = [
     ...new Set(
       logs.flatMap((log) =>
-        log.targetUserId
-          ? [log.actorUserId, log.targetUserId]
-          : [log.actorUserId],
+        log.targetUserId ? [log.actorUserId, log.targetUserId] : [log.actorUserId],
       ),
     ),
   ]

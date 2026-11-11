@@ -1,4 +1,3 @@
-
 import { useState, useSyncExternalStore, type FormEvent } from 'react'
 import {
   CalendarDays,
@@ -455,7 +454,11 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
                 <button
                   type="button"
                   onClick={() => setShowCurrentPassword((visible) => !visible)}
-                  aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                  aria-label={
+                    showCurrentPassword
+                      ? 'Hide current password'
+                      : 'Show current password'
+                  }
                   title={showCurrentPassword ? 'Hide password' : 'Show password'}
                   className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
                 >
@@ -510,7 +513,11 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword((visible) => !visible)}
-                  aria-label={showConfirmPassword ? 'Hide confirmation password' : 'Show confirmation password'}
+                  aria-label={
+                    showConfirmPassword
+                      ? 'Hide confirmation password'
+                      : 'Show confirmation password'
+                  }
                   title={showConfirmPassword ? 'Hide password' : 'Show password'}
                   className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
                 >

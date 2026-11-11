@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, ClipboardList, Search, ShieldCheck, Users } from 'lucide-react'
 
@@ -477,7 +476,9 @@ export default function AuditLogs({ role }: AuditLogsProps) {
                     <th className="whitespace-nowrap px-4 py-3 font-medium">Event ID</th>
                     <th className="whitespace-nowrap px-4 py-3 font-medium">Category</th>
                     <th className="whitespace-nowrap px-4 py-3 font-medium">Action</th>
-                    <th className="whitespace-nowrap px-4 py-3 font-medium">Performed By</th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">
+                      Performed By
+                    </th>
                     <th className="whitespace-nowrap px-4 py-3 font-medium">Target</th>
                     <th className="whitespace-nowrap px-4 py-3 font-medium">Details</th>
                     <th className="whitespace-nowrap px-4 py-3 font-medium">Timestamp</th>

@@ -1,4 +1,3 @@
-
 import { createServerFn } from '@tanstack/react-start'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 
@@ -30,12 +29,7 @@ export const getDashboardData = createServerFn({
     throw new Error('Authentication required')
   }
 
-  const allowedRoles = [
-    'ADMINISTRATOR',
-    'ASSET_MANAGER',
-    'TECHNICIAN',
-    'VIEWER_AUDITOR',
-  ]
+  const allowedRoles = ['ADMINISTRATOR', 'ASSET_MANAGER', 'TECHNICIAN', 'VIEWER_AUDITOR']
 
   if (!allowedRoles.includes(currentUser.role)) {
     throw new Error('You are not authorized to view dashboard data')
