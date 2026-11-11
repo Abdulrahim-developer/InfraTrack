@@ -100,12 +100,8 @@
           "name": "asset_assignments_asset_id_assets_asset_id_fk",
           "tableFrom": "asset_assignments",
           "tableTo": "assets",
-          "columnsFrom": [
-            "asset_id"
-          ],
-          "columnsTo": [
-            "asset_id"
-          ],
+          "columnsFrom": ["asset_id"],
+          "columnsTo": ["asset_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -113,12 +109,8 @@
           "name": "asset_assignments_user_id_users_user_id_fk",
           "tableFrom": "asset_assignments",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -214,12 +206,8 @@
           "name": "asset_audit_logs_asset_id_assets_asset_id_fk",
           "tableFrom": "asset_audit_logs",
           "tableTo": "assets",
-          "columnsFrom": [
-            "asset_id"
-          ],
-          "columnsTo": [
-            "asset_id"
-          ],
+          "columnsFrom": ["asset_id"],
+          "columnsTo": ["asset_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -227,12 +215,8 @@
           "name": "asset_audit_logs_actor_user_id_users_user_id_fk",
           "tableFrom": "asset_audit_logs",
           "tableTo": "users",
-          "columnsFrom": [
-            "actor_user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -471,12 +455,8 @@
           "name": "maintenance_records_asset_id_assets_asset_id_fk",
           "tableFrom": "maintenance_records",
           "tableTo": "assets",
-          "columnsFrom": [
-            "asset_id"
-          ],
-          "columnsTo": [
-            "asset_id"
-          ],
+          "columnsFrom": ["asset_id"],
+          "columnsTo": ["asset_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -484,12 +464,8 @@
           "name": "maintenance_records_performed_by_users_user_id_fk",
           "tableFrom": "maintenance_records",
           "tableTo": "users",
-          "columnsFrom": [
-            "performed_by"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["performed_by"],
+          "columnsTo": ["user_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -558,12 +534,8 @@
           "name": "password_reset_tokens_user_id_users_user_id_fk",
           "tableFrom": "password_reset_tokens",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -605,9 +577,7 @@
         "roles_role_name_unique": {
           "name": "roles_role_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "role_name"
-          ]
+          "columns": ["role_name"]
         }
       },
       "policies": {},
@@ -673,12 +643,8 @@
           "name": "sessions_user_id_users_user_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -769,12 +735,8 @@
           "name": "user_audit_logs_actor_user_id_users_user_id_fk",
           "tableFrom": "user_audit_logs",
           "tableTo": "users",
-          "columnsFrom": [
-            "actor_user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -782,12 +744,8 @@
           "name": "user_audit_logs_target_user_id_users_user_id_fk",
           "tableFrom": "user_audit_logs",
           "tableTo": "users",
-          "columnsFrom": [
-            "target_user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["target_user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -896,12 +854,8 @@
           "name": "user_invitations_role_id_roles_role_id_fk",
           "tableFrom": "user_invitations",
           "tableTo": "roles",
-          "columnsFrom": [
-            "role_id"
-          ],
-          "columnsTo": [
-            "role_id"
-          ],
+          "columnsFrom": ["role_id"],
+          "columnsTo": ["role_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -909,12 +863,8 @@
           "name": "user_invitations_invited_by_users_user_id_fk",
           "tableFrom": "user_invitations",
           "tableTo": "users",
-          "columnsFrom": [
-            "invited_by"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["invited_by"],
+          "columnsTo": ["user_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -977,12 +927,8 @@
           "name": "user_roles_user_id_users_user_id_fk",
           "tableFrom": "user_roles",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -990,12 +936,8 @@
           "name": "user_roles_role_id_roles_role_id_fk",
           "tableFrom": "user_roles",
           "tableTo": "roles",
-          "columnsFrom": [
-            "role_id"
-          ],
-          "columnsTo": [
-            "role_id"
-          ],
+          "columnsFrom": ["role_id"],
+          "columnsTo": ["role_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1003,12 +945,8 @@
           "name": "user_roles_assigned_by_users_user_id_fk",
           "tableFrom": "user_roles",
           "tableTo": "users",
-          "columnsFrom": [
-            "assigned_by"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["assigned_by"],
+          "columnsTo": ["user_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1016,10 +954,7 @@
       "compositePrimaryKeys": {
         "user_roles_user_id_role_id_pk": {
           "name": "user_roles_user_id_role_id_pk",
-          "columns": [
-            "user_id",
-            "role_id"
-          ]
+          "columns": ["user_id", "role_id"]
         }
       },
       "uniqueConstraints": {},

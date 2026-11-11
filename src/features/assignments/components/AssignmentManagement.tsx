@@ -15,6 +15,7 @@ import { listAssignmentUsers } from '#/features/assignments/server/list-assignme
 import { listAssignments } from '#/features/assignments/server/list-assignments'
 import { createAssignment } from '#/features/assignments/server/create-assignment'
 import { returnAssignment } from '#/features/assignments/server/return-assignment'
+import { useAppData } from '#/features/dashboard/context/AppDataContext'
 
 type AssignmentStatus = 'Assigned' | 'Returned'
 type AssetType = string
@@ -82,6 +83,7 @@ export default function AssignmentManagement({
   initialAction,
   userRole,
 }: AssignmentManagementProps) {
+  const { refreshDashboard } = useAppData()
   const canManageAssignments =
     userRole === 'Administrator' || userRole === 'Asset Manager'
 
@@ -148,6 +150,7 @@ export default function AssignmentManagement({
 
       try {
         await refreshAssignmentData()
+        await refreshDashboard()
       } catch (error) {
         if (isMounted) {
           setDataLoadError(
@@ -352,6 +355,7 @@ export default function AssignmentManagement({
       })
 
       await refreshAssignmentData()
+      await refreshDashboard()
 
       setAssignmentToReturn(null)
       setSuccessMessage(result.message)

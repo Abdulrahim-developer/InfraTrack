@@ -14,6 +14,7 @@ import { listAssignmentUsers } from '#/features/assignments/server/list-assignme
 import { createMaintenanceRecord } from '#/features/maintenance/server/create-maintenance-record'
 import { listMaintenanceRecords } from '#/features/maintenance/server/list-maintenance-records'
 import type { AppRole } from '#/features/navigation/navigation.config'
+import { useAppData } from '#/features/dashboard/context/AppDataContext'
 
 type MaintenanceType = 'Preventive' | 'Corrective' | 'Inspection' | 'Repair'
 
@@ -96,6 +97,7 @@ export default function MaintenanceManagement({
   initialAssetId,
   initialAction,
 }: MaintenanceManagementProps) {
+  const { refreshDashboard } = useAppData()
   const canCreate =
     role === 'Administrator' || role === 'Asset Manager' || role === 'Technician'
 
@@ -208,6 +210,7 @@ export default function MaintenanceManagement({
       if (document.visibilityState === 'visible') {
         try {
           await loadRecords()
+          await refreshDashboard()
         } catch (error) {
           console.error('Unable to refresh maintenance records:', error)
         }

@@ -3,6 +3,7 @@ import { CheckCircle2, Loader2, X } from 'lucide-react'
 
 import { updateAsset } from '#/features/assets/server/update-asset'
 import { getAssetById } from '#/features/assets/server/get-asset-by-id'
+import { useAppData } from '#/features/dashboard/context/AppDataContext'
 
 type AssetDetails = NonNullable<Awaited<ReturnType<typeof getAssetById>>['data']>
 
@@ -22,8 +23,11 @@ const inputStyles =
 const labelStyles = 'mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200'
 
 export default function EditAssetForm({ asset, onCancel, onSaved }: EditAssetFormProps) {
+  const { refreshDashboard } = useAppData()
+
   const [assetName, setAssetName] = useState(asset.assetName)
   const [assetType, setAssetType] = useState(asset.assetType)
+
   const [serialNumber, setSerialNumber] = useState(asset.serialNumber ?? '')
   const [manufacturer, setManufacturer] = useState(asset.manufacturer ?? '')
   const [modelNumber, setModelNumber] = useState(asset.modelNumber ?? '')
@@ -66,6 +70,7 @@ export default function EditAssetForm({ asset, onCancel, onSaved }: EditAssetFor
       })
 
       if (result.success) {
+        await refreshDashboard()
         onSaved()
       }
     } catch (error) {

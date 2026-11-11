@@ -61,7 +61,7 @@ export default function RecentActivity() {
                   Asset
                 </th>
                 <th scope="col" className="px-3 py-3">
-                  Performed By
+                  Recorded By
                 </th>
               </tr>
             </thead>

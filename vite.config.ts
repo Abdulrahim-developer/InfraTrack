@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vitest/config'
 import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
@@ -11,13 +10,7 @@ export default defineConfig({
     tsconfigPaths: true,
   },
 
-  plugins: [
-    devtools(),
-    tailwindcss(),
-    tanstackStart(),
-    nitro(),
-    viteReact(),
-  ],
+  plugins: [devtools(), tailwindcss(), tanstackStart(), nitro(), viteReact()],
 
   test: {
     environment: 'jsdom',
