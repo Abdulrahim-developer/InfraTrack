@@ -3,6 +3,7 @@ import { ilike } from 'drizzle-orm'
 
 import { db } from '#/db'
 import { assets } from '#/db/schema/assets'
+import { assetAuditLogs } from '#/db/schema/asset-audit-logs'
 import { getCurrentUser } from '#/features/auth/server/session'
 
 type CreateAssetInput = {
@@ -109,23 +110,34 @@ export const createAsset = createServerFn({
     }
 
     try {
-      const [newAsset] = await db
-        .insert(assets)
-        .values({
-          assetName: data.assetName,
-          assetType: data.assetType,
-          serialNumber: data.serialNumber,
-          location: data.location,
-          status: data.status,
-        })
-        .returning({
-          assetId: assets.assetId,
-          assetName: assets.assetName,
+      const newAsset = await db.transaction(async (tx) => {
+        const [createdAsset] = await tx
+          .insert(assets)
+          .values({
+            assetName: data.assetName,
+            assetType: data.assetType,
+            serialNumber: data.serialNumber,
+            location: data.location,
+            status: data.status,
+          })
+          .returning({
+            assetId: assets.assetId,
+            assetName: assets.assetName,
+          })
+
+        if (!createdAsset) {
+          throw new Error('Asset registration failed')
+        }
+
+        await tx.insert(assetAuditLogs).values({
+          assetId: createdAsset.assetId,
+          actorUserId: user.userId,
+          action: 'asset registered',
+          details: `Asset "${createdAsset.assetName}" was registered.`,
         })
 
-      if (!newAsset) {
-        throw new Error('Asset registration failed')
-      }
+        return createdAsset
+      })
 
       return {
         success: true,

@@ -6,6 +6,7 @@ import { z } from 'zod'
 
 import { db } from '#/db'
 import { roles } from '#/db/schema/roles'
+import { userAuditLogs } from '#/db/schema/user-audit-logs'
 import { users } from '#/db/schema/users'
 import { userInvitations } from '#/db/schema/user-invitations'
 import { getCurrentUser } from '#/features/auth/server/session'
@@ -142,6 +143,13 @@ export const createUserInvitation = createServerFn({
 
       throw new Error(`Unable to send invitation email: ${error.message}`)
     }
+
+    await db.insert(userAuditLogs).values({
+      actorUserId: currentUser.userId,
+      targetUserId: null,
+      action: 'Invitation Created',
+      details: `Invitation sent to ${email} with the ${roleLabel} role.`,
+    })
 
     return {
       success: true,

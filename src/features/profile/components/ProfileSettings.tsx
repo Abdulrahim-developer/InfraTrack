@@ -1,7 +1,10 @@
+
 import { useState, useSyncExternalStore, type FormEvent } from 'react'
 import {
   CalendarDays,
   CheckCircle2,
+  Eye,
+  EyeOff,
   Info,
   LockKeyhole,
   Mail,
@@ -13,6 +16,8 @@ import {
 } from 'lucide-react'
 
 import type { AppRole } from '#/features/navigation/navigation.config'
+import { updateProfile } from '#/features/profile/server/update-profile'
+import { changePassword } from '#/features/profile/server/change-password'
 import {
   getServerThemeSnapshot,
   getThemeMode,
@@ -25,23 +30,20 @@ type ProfileTab = 'profile' | 'password' | 'preferences'
 type ThemePreference = 'system' | 'light' | 'dark'
 
 interface ProfileSettingsProps {
-  role: AppRole
+  user: {
+    fullName: string
+    email: string
+    role: AppRole
+    accountStatus: string
+    createdAt: Date | string
+  }
 }
 
-const mockProfile = {
-  name: 'Abdul Rahim',
-  email: 'rahim@example.test',
-  department: 'IT Infrastructure',
-  contact: '+91 98765 43210',
-  memberSince: '04 Nov 2026',
-}
-
-export default function ProfileSettings({ role }: ProfileSettingsProps) {
+export default function ProfileSettings({ user }: ProfileSettingsProps) {
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile')
-  const [fullName, setFullName] = useState(mockProfile.name)
-  const [department, setDepartment] = useState(mockProfile.department)
-  const [contact, setContact] = useState(mockProfile.contact)
-  const [timeZone, setTimeZone] = useState('Asia/Kolkata')
+  const [fullName, setFullName] = useState(user.fullName)
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
 
   const currentThemeMode = useSyncExternalStore(
     subscribeTheme,
@@ -64,34 +66,88 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [message, setMessage] = useState('')
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success')
 
-  function showMessage(value: string) {
+  function showMessage(value: string, type: 'success' | 'error' = 'success') {
     setMessage(value)
+    setMessageType(type)
   }
 
-  function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    showMessage('Profile changes saved in this preview.')
+    setMessage('')
+
+    const trimmedName = fullName.trim()
+
+    if (!trimmedName || trimmedName.length > 120) {
+      showMessage('Full name must be between 1 and 120 characters.', 'error')
+      return
+    }
+
+    try {
+      setIsSavingProfile(true)
+
+      const result = await updateProfile({
+        data: { fullName: trimmedName },
+      })
+
+      setFullName(result.fullName)
+      showMessage('Your profile has been updated successfully.')
+    } catch (error) {
+      showMessage(
+        error instanceof Error ? error.message : 'Unable to update your profile.',
+        'error',
+      )
+    } finally {
+      setIsSavingProfile(false)
+    }
   }
 
-  function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setMessage('')
 
     if (newPassword.length < 8) {
-      showMessage('Your new password must contain at least 8 characters.')
+      showMessage('Your new password must contain at least 8 characters.', 'error')
+      return
+    }
+
+    if (newPassword.length > 128) {
+      showMessage('Your new password cannot exceed 128 characters.', 'error')
       return
     }
 
     if (newPassword !== confirmPassword) {
-      showMessage('The new password and confirmation do not match.')
+      showMessage('The new password and confirmation do not match.', 'error')
       return
     }
 
-    showMessage('Password form validated. Password changes are not connected yet.')
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
+    try {
+      setIsChangingPassword(true)
+
+      await changePassword({
+        data: { currentPassword, newPassword },
+      })
+
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setShowCurrentPassword(false)
+      setShowNewPassword(false)
+      setShowConfirmPassword(false)
+      showMessage('Your password has been changed successfully.')
+    } catch (error) {
+      showMessage(
+        error instanceof Error ? error.message : 'Unable to change your password.',
+        'error',
+      )
+    } finally {
+      setIsChangingPassword(false)
+    }
   }
 
   function handlePreferencesSubmit(event: FormEvent<HTMLFormElement>) {
@@ -115,6 +171,14 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join('')
+
+  const memberSince = new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(user.createdAt))
+
+  const isActive = user.accountStatus === 'ACTIVE'
 
   return (
     <main className="min-w-0 space-y-6">
@@ -157,7 +221,11 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
       {message && (
         <div
           role="status"
-          className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200"
+          className={`flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
+            messageType === 'error'
+              ? 'border-red-100 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200'
+              : 'border-blue-100 bg-blue-50 text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200'
+          }`}
         >
           <Info size={18} className="mt-0.5 shrink-0" />
           {message}
@@ -199,7 +267,7 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
                 </span>
                 <input
                   readOnly
-                  value={mockProfile.email}
+                  value={user.email}
                   className="h-11 w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
                 />
               </label>
@@ -211,7 +279,7 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
                 <div className="flex min-h-11 items-center">
                   <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                     <Users size={16} />
-                    {role}
+                    {user.role}
                   </span>
                 </div>
               </div>
@@ -221,80 +289,44 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
                   Account Status
                 </span>
                 <div className="flex min-h-11 items-center">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                    <span className="size-2 rounded-full bg-emerald-500" />
-                    Active
+                  <span
+                    className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium ${
+                      isActive
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                        : 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                    }`}
+                  >
+                    <span
+                      className={`size-2 rounded-full ${
+                        isActive ? 'bg-emerald-500' : 'bg-amber-500'
+                      }`}
+                    />
+                    {user.accountStatus.replaceAll('_', ' ')}
                   </span>
                 </div>
               </div>
-
-              <div className="border-t border-slate-100 dark:border-slate-700 sm:col-span-2" />
-
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Department
-                </span>
-                <input
-                  value={department}
-                  maxLength={120}
-                  onChange={(event) => setDepartment(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Contact Number
-                </span>
-                <input
-                  value={contact}
-                  maxLength={30}
-                  onChange={(event) => setContact(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900"
-                />
-              </label>
-            </div>
-
-            <div className="mt-5 max-w-sm">
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Time Zone
-                </span>
-                <select
-                  value={timeZone}
-                  onChange={(event) => setTimeZone(event.target.value)}
-                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-                >
-                  <option value="Asia/Kolkata">GMT+05:30 India Standard Time</option>
-                  <option value="UTC">UTC</option>
-                  <option value="Asia/Dubai">GMT+04:00 Gulf Standard Time</option>
-                  <option value="Europe/London">Europe/London</option>
-                  <option value="America/New_York">America/New York</option>
-                </select>
-              </label>
             </div>
 
             <div className="mt-7 flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5 dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => {
-                  setFullName(mockProfile.name)
-                  setDepartment(mockProfile.department)
-                  setContact(mockProfile.contact)
-                  setTimeZone('Asia/Kolkata')
+                  setFullName(user.fullName)
                   setMessage('')
                 }}
-                className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                disabled={isSavingProfile}
+                className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
 
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold !text-white hover:bg-blue-700"
+                disabled={isSavingProfile}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold !text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Save size={17} />
-                Update Profile
+                {isSavingProfile ? 'Saving...' : 'Update Profile'}
               </button>
             </div>
           </form>
@@ -317,7 +349,7 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
                     {fullName}
                   </p>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    {role}
+                    {user.role}
                   </p>
                 </div>
               </div>
@@ -328,7 +360,7 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
                   <div className="min-w-0 flex-1">
                     <dt className="text-xs text-slate-400">Email</dt>
                     <dd className="break-all font-medium text-slate-700 dark:text-slate-300">
-                      {mockProfile.email}
+                      {user.email}
                     </dd>
                   </div>
                 </div>
@@ -338,7 +370,7 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
                   <div>
                     <dt className="text-xs text-slate-400">Role</dt>
                     <dd className="font-medium text-slate-700 dark:text-slate-300">
-                      {role}
+                      {user.role}
                     </dd>
                   </div>
                 </div>
@@ -348,7 +380,7 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
                   <div>
                     <dt className="text-xs text-slate-400">Member Since</dt>
                     <dd className="font-medium text-slate-700 dark:text-slate-300">
-                      {mockProfile.memberSince}
+                      {memberSince}
                     </dd>
                   </div>
                 </div>
@@ -366,11 +398,11 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
               <div className="rounded-lg bg-emerald-50 p-4 dark:bg-emerald-950/40">
                 <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
                   <CheckCircle2 size={20} />
-                  <p className="font-semibold">Security information</p>
+                  <p className="font-semibold">Account protected</p>
                 </div>
                 <p className="mt-1 text-xs leading-5 text-emerald-700 dark:text-emerald-400">
-                  Password and account security controls will be connected when
-                  authentication is implemented.
+                  Your account is protected by secure password hashing and authenticated
+                  sessions.
                 </p>
               </div>
 
@@ -411,60 +443,91 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Current Password
               </span>
-              <input
-                type="password"
-                required
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900"
-              />
+              <div className="relative">
+                <input
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 pr-11 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword((visible) => !visible)}
+                  aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                  title={showCurrentPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                >
+                  {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
 
             <label className="block space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 New Password
               </span>
-              <input
-                type="password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900"
-              />
-              <span className="text-xs text-slate-400">Use at least 8 characters.</span>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  maxLength={128}
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 pr-11 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((visible) => !visible)}
+                  aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                  title={showNewPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                >
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              <span className="text-xs text-slate-400">Use 8 to 128 characters.</span>
             </label>
 
             <label className="block space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Confirm New Password
               </span>
-              <input
-                type="password"
-                required
-                minLength={8}
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900"
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  maxLength={128}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 pr-11 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:focus:ring-blue-900"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((visible) => !visible)}
+                  aria-label={showConfirmPassword ? 'Hide confirmation password' : 'Show confirmation password'}
+                  title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 transition hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
 
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold !text-white hover:bg-blue-700"
+              disabled={isChangingPassword}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold !text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <LockKeyhole size={17} />
-              Update Password
+              {isChangingPassword ? 'Updating...' : 'Update Password'}
             </button>
           </form>
-
-          <p className="mt-5 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-            Preview only: password validation is demonstrated here. No actual password is
-            changed or stored.
-          </p>
         </section>
       )}
 
@@ -506,23 +569,6 @@ export default function ProfileSettings({ role }: ProfileSettingsProps) {
               <span className="text-xs text-slate-400 dark:text-slate-500">
                 Your appearance preference is applied across the application.
               </span>
-            </label>
-
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Time Zone
-              </span>
-              <select
-                value={timeZone}
-                onChange={(event) => setTimeZone(event.target.value)}
-                className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-blue-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
-              >
-                <option value="Asia/Kolkata">GMT+05:30 India Standard Time</option>
-                <option value="UTC">UTC</option>
-                <option value="Asia/Dubai">GMT+04:00 Gulf Standard Time</option>
-                <option value="Europe/London">Europe/London</option>
-                <option value="America/New_York">America/New York</option>
-              </select>
             </label>
 
             <button

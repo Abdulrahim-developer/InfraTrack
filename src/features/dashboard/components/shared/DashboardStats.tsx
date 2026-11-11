@@ -1,6 +1,6 @@
 import { Archive, Boxes, ClipboardList, UserCheck, Wrench } from 'lucide-react'
 import DashboardStatCard from './DashboardStatCard'
-import { currentMockTechnicianId } from '../../data/dashboard.mock'
+
 import { useAppData } from '../../context/AppDataContext'
 
 interface DashboardStatsProps {
@@ -10,7 +10,7 @@ interface DashboardStatsProps {
 export default function DashboardStats({
   variant = 'administrator',
 }: DashboardStatsProps) {
-  const { assets, assignments, maintenanceRecords } = useAppData()
+  const { assets, assignments, maintenanceRecords, currentUserId } = useAppData()
 
   const totalAssets = assets.length
 
@@ -33,7 +33,7 @@ export default function DashboardStats({
   const assignedAssets = assignedAssetIds.size
 
   const technicianAssignments = activeAssignments.filter(
-    (assignment) => assignment.assignedToUserId === currentMockTechnicianId,
+    (assignment) => assignment.assignedToUserId === currentUserId,
   )
 
   const technicianAssetIds = new Set(
@@ -43,7 +43,7 @@ export default function DashboardStats({
   const technicianAssets = assets.filter((asset) => technicianAssetIds.has(asset.id))
 
   const technicianMaintenanceRecords = maintenanceRecords.filter(
-    (record) => record.performedBy === currentMockTechnicianId,
+    (record) => record.performedBy === currentUserId,
   )
 
   const metrics =

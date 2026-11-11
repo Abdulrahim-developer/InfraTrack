@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+
+import { useEffect, useMemo, useState } from 'react'
 import { Activity, ClipboardList, Search, ShieldCheck, Users } from 'lucide-react'
 
-import { recentActivity } from '#/features/dashboard/data/dashboard.mock'
+import { listAuditLogs } from '#/features/audit-logs/server/list-audit-logs'
 import type { AppRole } from '#/features/navigation/navigation.config'
 
 interface AuditLogsProps {
@@ -10,118 +11,22 @@ interface AuditLogsProps {
 
 type AuditCategory = 'Asset' | 'User'
 
-interface MockAuditUser {
-  id: string
-  name: string
-  email: string
-  role: AppRole
-}
-
 interface AuditEntry {
   id: string
   category: AuditCategory
   action: string
   actorUserId: string
+  actorName: string
+  actorEmail: string
+  actorRole: string
   targetUserId: string | null
+  targetUserName: string | null
+  targetUserEmail: string | null
+  targetUserRole: string | null
   targetAssetName: string | null
   details: string
   timestamp: string
 }
-
-// Fictional identities for audit-log UI development.
-// These will later be retrieved from PostgreSQL.
-const mockUsers: MockAuditUser[] = [
-  {
-    id: 'user-administrator-01',
-    name: 'Abdul Rahim',
-    email: 'rahim@example.test',
-    role: 'Administrator',
-  },
-  {
-    id: 'user-asset-manager-01',
-    name: 'Naveen K',
-    email: 'naveen@example.test',
-    role: 'Asset Manager',
-  },
-  {
-    id: 'user-technician-01',
-    name: 'Karthick',
-    email: 'karthick@example.test',
-    role: 'Technician',
-  },
-  {
-    id: 'user-technician-02',
-    name: 'Satish M',
-    email: 'satish@example.test',
-    role: 'Technician',
-  },
-  {
-    id: 'user-viewer-02',
-    name: 'Arun P',
-    email: 'arun@example.test',
-    role: 'Viewer/Auditor',
-  },
-]
-
-const userById = new Map(mockUsers.map((user) => [user.id, user]))
-
-const mockUserAuditLogs: AuditEntry[] = [
-  {
-    id: 'USR-AUD-001',
-    category: 'User',
-    action: 'Invitation Created',
-    actorUserId: 'user-administrator-01',
-    targetUserId: 'user-asset-manager-01',
-    targetAssetName: null,
-    details: 'Invitation created with Asset Manager role.',
-    timestamp: '2026-11-05T11:30:00',
-  },
-  {
-    id: 'USR-AUD-002',
-    category: 'User',
-    action: 'Role Assigned',
-    actorUserId: 'user-administrator-01',
-    targetUserId: 'user-technician-02',
-    targetAssetName: null,
-    details: 'Technician role assigned to user.',
-    timestamp: '2026-11-04T15:20:00',
-  },
-  {
-    id: 'USR-AUD-003',
-    category: 'User',
-    action: 'Account Deactivated',
-    actorUserId: 'user-administrator-01',
-    targetUserId: 'user-viewer-02',
-    targetAssetName: null,
-    details: 'User account deactivated.',
-    timestamp: '2026-11-03T12:45:00',
-  },
-  {
-    id: 'USR-AUD-004',
-    category: 'User',
-    action: 'Invitation Accepted',
-    actorUserId: 'user-asset-manager-01',
-    targetUserId: 'user-asset-manager-01',
-    targetAssetName: null,
-    details: 'User accepted the invitation.',
-    timestamp: '2026-11-02T09:15:00',
-  },
-]
-
-const mockAssetAuditLogs: AuditEntry[] = recentActivity.map((activity) => ({
-  id: `AST-AUD-${activity.id}`,
-  category: 'Asset',
-  action: activity.action,
-  actorUserId: activity.performedByUserId,
-  targetUserId: null,
-  targetAssetName: activity.assetName,
-  details: activity.details,
-  timestamp: activity.timestamp,
-}))
-
-const initialAuditLogs = [...mockAssetAuditLogs, ...mockUserAuditLogs].sort(
-  (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-)
 
 const dateFormatter = new Intl.DateTimeFormat('en-IN', {
   day: '2-digit',
@@ -135,13 +40,27 @@ function formatDate(value: string) {
   return dateFormatter.format(new Date(value))
 }
 
+function formatRole(role: string | null) {
+  if (!role) return 'Unknown'
+
+  const roleLabels: Record<string, string> = {
+    ADMINISTRATOR: 'Administrator',
+    ASSET_MANAGER: 'Asset Manager',
+    TECHNICIAN: 'Technician',
+    VIEWER_AUDITOR: 'Viewer/Auditor',
+  }
+
+  return roleLabels[role] ?? role
+}
+
 function getActionStyle(action: string) {
   const normalized = action.toLowerCase()
 
   if (
     normalized.includes('created') ||
     normalized.includes('registered') ||
-    normalized.includes('assigned')
+    normalized.includes('assigned') ||
+    normalized.includes('accepted')
   ) {
     return 'bg-emerald-50 text-emerald-700'
   }
@@ -149,7 +68,8 @@ function getActionStyle(action: string) {
   if (
     normalized.includes('deactivated') ||
     normalized.includes('retired') ||
-    normalized.includes('returned')
+    normalized.includes('returned') ||
+    normalized.includes('revoked')
   ) {
     return 'bg-orange-50 text-orange-700'
   }
@@ -161,10 +81,16 @@ function getActionStyle(action: string) {
   return 'bg-slate-100 text-slate-700'
 }
 
-function PersonDetails({ userId }: { userId: string }) {
-  const user = userById.get(userId)
-
-  if (!user) {
+function PersonDetails({
+  name,
+  email,
+  role,
+}: {
+  name: string | null
+  email: string | null
+  role: string | null
+}) {
+  if (!name) {
     return (
       <div>
         <p className="font-medium text-slate-700">Unknown user</p>
@@ -175,9 +101,9 @@ function PersonDetails({ userId }: { userId: string }) {
 
   return (
     <div className="min-w-0 space-y-0.5">
-      <p className="font-medium text-slate-800">{user.name}</p>
-      <p className="break-all text-xs text-slate-500">{user.email}</p>
-      <p className="text-xs text-slate-400">{user.role}</p>
+      <p className="font-medium text-slate-800">{name}</p>
+      <p className="break-all text-xs text-slate-500">{email ?? '—'}</p>
+      <p className="text-xs text-slate-400">{formatRole(role)}</p>
     </div>
   )
 }
@@ -186,14 +112,22 @@ function TargetDetails({ log }: { log: AuditEntry }) {
   if (log.category === 'Asset') {
     return (
       <div>
-        <p className="font-medium text-slate-700">{log.targetAssetName}</p>
+        <p className="font-medium text-slate-700">
+          {log.targetAssetName ?? 'Unknown asset'}
+        </p>
         <p className="text-xs text-slate-400">Infrastructure asset</p>
       </div>
     )
   }
 
   if (log.targetUserId) {
-    return <PersonDetails userId={log.targetUserId} />
+    return (
+      <PersonDetails
+        name={log.targetUserName}
+        email={log.targetUserEmail}
+        role={log.targetUserRole}
+      />
+    )
   }
 
   return <span className="text-slate-400">System-level event</span>
@@ -202,13 +136,47 @@ function TargetDetails({ log }: { log: AuditEntry }) {
 export default function AuditLogs({ role }: AuditLogsProps) {
   const isAdministrator = role === 'Administrator'
 
-  const [logs] = useState<AuditEntry[]>(initialAuditLogs)
+  const [logs, setLogs] = useState<AuditEntry[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All Activities')
   const [actionFilter, setActionFilter] = useState('All Actions')
   const [dateFilter, setDateFilter] = useState('30')
   const [pageSize, setPageSize] = useState(5)
   const [currentPage, setCurrentPage] = useState(1)
+
+  useEffect(() => {
+    let isActive = true
+
+    async function loadAuditLogs() {
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        const records = await listAuditLogs()
+
+        if (isActive) {
+          setLogs(records as AuditEntry[])
+        }
+      } catch (err) {
+        if (isActive) {
+          setError(err instanceof Error ? err.message : 'Unable to load audit logs.')
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadAuditLogs()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   const summary = useMemo(
     () => ({
@@ -229,20 +197,17 @@ export default function AuditLogs({ role }: AuditLogsProps) {
 
     return logs
       .filter((log) => {
-        const actor = userById.get(log.actorUserId)
-        const targetUser = log.targetUserId ? userById.get(log.targetUserId) : undefined
-
         const searchableValues = [
           log.id,
           log.action,
           log.details,
           log.targetAssetName ?? '',
-          actor?.name ?? '',
-          actor?.email ?? '',
-          actor?.role ?? '',
-          targetUser?.name ?? '',
-          targetUser?.email ?? '',
-          targetUser?.role ?? '',
+          log.actorName,
+          log.actorEmail,
+          formatRole(log.actorRole),
+          log.targetUserName ?? '',
+          log.targetUserEmail ?? '',
+          formatRole(log.targetUserRole),
         ]
 
         const matchesSearch =
@@ -434,7 +399,19 @@ export default function AuditLogs({ role }: AuditLogsProps) {
           </span>
         </div>
 
-        {paginatedLogs.length === 0 ? (
+        {isLoading ? (
+          <div className="px-4 py-12 text-center">
+            <p className="text-sm text-slate-500">Loading audit records...</p>
+          </div>
+        ) : error ? (
+          <div className="px-4 py-12 text-center">
+            <ShieldCheck size={34} className="mx-auto text-red-300" />
+            <p className="mt-3 font-medium text-slate-700">
+              Unable to load audit records
+            </p>
+            <p className="mt-1 text-sm text-slate-500">{error}</p>
+          </div>
+        ) : paginatedLogs.length === 0 ? (
           <div className="px-4 py-12 text-center">
             <ShieldCheck size={34} className="mx-auto text-slate-300" />
             <p className="mt-3 font-medium text-slate-700">No audit records found</p>
@@ -448,23 +425,29 @@ export default function AuditLogs({ role }: AuditLogsProps) {
               {paginatedLogs.map((log) => (
                 <article key={log.id} className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-medium text-slate-400">{log.id}</p>
+                    <div className="min-w-0">
+                      <p className="break-all text-xs font-medium text-slate-400">
+                        {log.id.slice(0, 8).toUpperCase()}
+                      </p>
                       <p className="mt-1 font-semibold text-slate-900">{log.action}</p>
                     </div>
                     <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${getActionStyle(log.action)}`}
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${getActionStyle(log.action)}`}
                     >
                       {log.category}
                     </span>
                   </div>
 
-                  <p className="text-sm text-slate-600">{log.details}</p>
+                  <p className="break-words text-sm text-slate-600">{log.details}</p>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="min-w-0">
                       <p className="mb-1 text-xs text-slate-400">Performed By</p>
-                      <PersonDetails userId={log.actorUserId} />
+                      <PersonDetails
+                        name={log.actorName}
+                        email={log.actorEmail}
+                        role={log.actorRole}
+                      />
                     </div>
                     <div className="min-w-0">
                       <p className="mb-1 text-xs text-slate-400">Target</p>
@@ -477,17 +460,27 @@ export default function AuditLogs({ role }: AuditLogsProps) {
               ))}
             </div>
 
-            <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[1050px] text-left text-sm">
+            <div className="hidden w-full overflow-x-auto md:block">
+              <table className="w-full min-w-[1370px] table-fixed text-left text-sm">
+                <colgroup>
+                  <col className="w-[250px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[180px]" />
+                  <col className="w-[200px]" />
+                  <col className="w-[200px]" />
+                  <col className="w-[250px]" />
+                  <col className="w-[180px]" />
+                </colgroup>
+
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Event ID</th>
-                    <th className="px-4 py-3 font-medium">Category</th>
-                    <th className="px-4 py-3 font-medium">Action</th>
-                    <th className="px-4 py-3 font-medium">Performed By</th>
-                    <th className="px-4 py-3 font-medium">Target</th>
-                    <th className="px-4 py-3 font-medium">Details</th>
-                    <th className="px-4 py-3 font-medium">Timestamp</th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">Event ID</th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">Category</th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">Action</th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">Performed By</th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">Target</th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">Details</th>
+                    <th className="whitespace-nowrap px-4 py-3 font-medium">Timestamp</th>
                   </tr>
                 </thead>
 
@@ -495,10 +488,10 @@ export default function AuditLogs({ role }: AuditLogsProps) {
                   {paginatedLogs.map((log) => (
                     <tr key={log.id} className="transition hover:bg-slate-50/70">
                       <td className="whitespace-nowrap px-4 py-4 font-medium text-slate-700">
-                        {log.id}
+                        {log.id.slice(0, 8).toUpperCase()}
                       </td>
 
-                      <td className="px-4 py-4">
+                      <td className="whitespace-nowrap px-4 py-4">
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
                           {log.category}
                         </span>
@@ -512,15 +505,21 @@ export default function AuditLogs({ role }: AuditLogsProps) {
                         </span>
                       </td>
 
-                      <td className="min-w-48 px-4 py-4">
-                        <PersonDetails userId={log.actorUserId} />
+                      <td className="px-4 py-4 align-top">
+                        <PersonDetails
+                          name={log.actorName}
+                          email={log.actorEmail}
+                          role={log.actorRole}
+                        />
                       </td>
 
-                      <td className="min-w-48 px-4 py-4">
+                      <td className="px-4 py-4 align-top">
                         <TargetDetails log={log} />
                       </td>
 
-                      <td className="max-w-xs px-4 py-4 text-slate-500">{log.details}</td>
+                      <td className="break-words px-4 py-4 text-slate-500">
+                        {log.details}
+                      </td>
 
                       <td className="whitespace-nowrap px-4 py-4 text-slate-500">
                         {formatDate(log.timestamp)}
@@ -560,7 +559,7 @@ export default function AuditLogs({ role }: AuditLogsProps) {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                disabled={safeCurrentPage <= 1}
+                disabled={safeCurrentPage <= 1 || isLoading}
                 onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 disabled:opacity-40"
               >
@@ -573,7 +572,7 @@ export default function AuditLogs({ role }: AuditLogsProps) {
 
               <button
                 type="button"
-                disabled={safeCurrentPage >= totalPages}
+                disabled={safeCurrentPage >= totalPages || isLoading}
                 onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 disabled:opacity-40"
               >

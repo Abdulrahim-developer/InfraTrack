@@ -1,164 +1,130 @@
+
 import {
   createContext,
+  useCallback,
   useContext,
-  useMemo,
+  useEffect,
   useState,
-  type Dispatch,
   type ReactNode,
-  type SetStateAction,
 } from 'react'
 
-import {
-  assetInventory,
-  assignments,
-  maintenanceRecords,
-  recentActivity,
-  currentMockUserId,
-  currentMockTechnicianId,
-  type DashboardActivity,
-} from '#/features/dashboard/data/dashboard.mock'
+import type { DashboardActivity } from '#/features/dashboard/data/dashboard.mock'
+import { getDashboardData } from '#/features/dashboard/server/get-dashboard-data'
 
-export type AppAsset = (typeof assetInventory)[number] & {
+export type AssetStatus = 'Active' | 'Maintenance' | 'In Storage' | 'Retired'
+
+export type AppAsset = {
+  id: string
+  name: string
+  type: string
+  serialNumber: string
+  status: AssetStatus
+  location: string
   createdAt?: string
+  assignedTo?: string | null
 }
 
-export type AppAssignment = (typeof assignments)[number] & {
+export type AppAssignment = {
+  id: string
+  assetId: string
+  assignedToUserId: string | null
+  assignedToUserName: string | null
+  assignedAt: string
+  returnedAt: string | null
   assignedToDepartment?: string | null
 }
 
-export type AppMaintenanceRecord = (typeof maintenanceRecords)[number]
+export type AppMaintenanceRecord = {
+  id: string
+  assetId: string
+  performedBy: string
+  performedByName: string | null
+  maintenanceType: string
+  description: string
+  performedAt: string
+}
 
 interface AppDataContextValue {
+  currentUserId: string | null
   assets: AppAsset[]
-  setAssets: Dispatch<SetStateAction<AppAsset[]>>
   assignments: AppAssignment[]
-  setAssignments: Dispatch<SetStateAction<AppAssignment[]>>
   maintenanceRecords: AppMaintenanceRecord[]
-  setMaintenanceRecords: Dispatch<SetStateAction<AppMaintenanceRecord[]>>
   activities: DashboardActivity[]
+  isLoading: boolean
+  error: string | null
+  refreshDashboard: () => Promise<void>
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null)
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const [assets, setAssets] = useState<AppAsset[]>(() =>
-    assetInventory.map((asset) => ({ ...asset })),
-  )
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [assets, setAssets] = useState<AppAsset[]>([])
+  const [assignments, setAssignments] = useState<AppAssignment[]>([])
+  const [maintenanceRecords, setMaintenanceRecords] = useState<AppMaintenanceRecord[]>([])
+  const [activities, setActivities] = useState<DashboardActivity[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const [assignmentRecords, setAssignmentRecords] = useState<AppAssignment[]>(() =>
-    assignments.map((assignment) => ({
-      ...assignment,
-      assignedToDepartment: null,
-    })),
-  )
+  const refreshDashboard = useCallback(async () => {
+    try {
+      const result = await getDashboardData()
 
-  const [maintenanceRecordList, setMaintenanceRecordList] = useState<
-    AppMaintenanceRecord[]
-  >(() => maintenanceRecords.map((record) => ({ ...record })))
+      if (!result.success) {
+        throw new Error('Unable to load dashboard data')
+      }
 
-  const activities = useMemo<DashboardActivity[]>(() => {
-    const registeredActivities: DashboardActivity[] = assets
-      .filter((asset) => Boolean(asset.createdAt))
-      .map((asset) => ({
-        id: `registered-${asset.id}`,
-        action: 'Registered',
-        assetName: asset.name,
-        assetReferenceId: asset.id.slice(0, 8).toUpperCase(),
-        details: 'New infrastructure asset registered',
-        timestamp: asset.createdAt!,
-        performedBy: 'Administrator',
-        performedByUserId: 'user-administrator-01',
-      }))
+      setCurrentUserId(result.data.currentUserId)
+      setAssets(result.data.assets)
+      setAssignments(result.data.assignments)
+      setMaintenanceRecords(result.data.maintenanceRecords)
+      setActivities(result.data.activities)
+      setError(null)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to load dashboard data. Please try again.',
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
 
-    const assignmentActivities: DashboardActivity[] = assignmentRecords.flatMap(
-      (assignment) => {
-        const asset = assets.find((item) => item.id === assignment.assetId)
+  useEffect(() => {
+    void refreshDashboard()
 
-        if (!asset) return []
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refreshDashboard()
+      }
+    }, 30_000)
 
-        const assignedTo =
-          assignment.assignedToUserId === currentMockUserId
-            ? 'Asset Manager'
-            : assignment.assignedToUserId === currentMockTechnicianId
-              ? 'Technician'
-              : (assignment.assignedToDepartment ?? 'a department')
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        void refreshDashboard()
+      }
+    }
 
-        const assignedActivity: DashboardActivity = {
-          id: `assigned-${assignment.id}`,
-          action: 'Assigned',
-          assetName: asset.name,
-          assetReferenceId: asset.id.slice(0, 8).toUpperCase(),
-          details: `Asset assigned to ${assignedTo}`,
-          timestamp: assignment.assignedAt,
-          performedBy: 'Asset Manager',
-          performedByUserId: currentMockUserId,
-        }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
-        if (!assignment.returnedAt) return [assignedActivity]
-
-        const returnedActivity: DashboardActivity = {
-          id: `returned-${assignment.id}`,
-          action: 'Returned',
-          assetName: asset.name,
-          assetReferenceId: asset.id.slice(0, 8).toUpperCase(),
-          details: 'Asset assignment returned',
-          timestamp: assignment.returnedAt,
-          performedBy: 'Asset Manager',
-          performedByUserId: currentMockUserId,
-        }
-
-        return [assignedActivity, returnedActivity]
-      },
-    )
-
-    const maintenanceActivities: DashboardActivity[] = maintenanceRecordList.flatMap(
-      (record) => {
-        const asset = assets.find((item) => item.id === record.assetId)
-
-        if (!asset) return []
-
-        return [
-          {
-            id: `maintenance-${record.id}`,
-            action: 'Maintenance',
-            assetName: asset.name,
-            assetReferenceId: asset.id.slice(0, 8).toUpperCase(),
-            details: 'Maintenance record created',
-            timestamp: record.performedAt,
-            performedBy: 'Technician',
-            performedByUserId: record.performedBy,
-          },
-        ]
-      },
-    )
-
-    const dynamicActivities = [
-      ...registeredActivities,
-      ...assignmentActivities,
-      ...maintenanceActivities,
-    ]
-
-    const dynamicIds = new Set(dynamicActivities.map((activity) => activity.id))
-
-    const existingActivities = recentActivity.filter(
-      (activity) => !dynamicIds.has(activity.id),
-    )
-
-    return [...dynamicActivities, ...existingActivities].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-    )
-  }, [assets, assignmentRecords, maintenanceRecordList])
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [refreshDashboard])
 
   return (
     <AppDataContext.Provider
       value={{
+        currentUserId,
         assets,
-        setAssets,
-        assignments: assignmentRecords,
-        setAssignments: setAssignmentRecords,
-        maintenanceRecords: maintenanceRecordList,
-        setMaintenanceRecords: setMaintenanceRecordList,
+        assignments,
+        maintenanceRecords,
         activities,
+        isLoading,
+        error,
+        refreshDashboard,
       }}
     >
       {children}

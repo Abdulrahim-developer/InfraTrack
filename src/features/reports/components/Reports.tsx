@@ -9,10 +9,7 @@ import {
   Users,
   Wrench,
 } from 'lucide-react'
-import {
-  currentMockTechnicianId,
-  currentMockUserId,
-} from '#/features/dashboard/data/dashboard.mock'
+
 import { useAppData } from '#/features/dashboard/context/AppDataContext'
 import type {
   AppAsset,
@@ -75,14 +72,16 @@ function formatDate(value: string | null) {
   })
 }
 
-function getAssigneeName(userId: string | null, department?: string | null) {
-  if (!userId) return department || 'Department assignment'
-  if (userId === currentMockUserId) return 'Asset Manager'
-  if (userId === currentMockTechnicianId) return 'Technician'
-
-  return 'Other user'
+function getAssigneeName(
+  userId: string | null,
+  userName: string | null,
+  department?: string | null,
+) {
+  if (userName) return userName
+  if (department) return department
+  if (userId) return 'Assigned User'
+  return 'Unassigned'
 }
-
 function getReportData(
   reportType: ReportType,
   assets: AppAsset[],
@@ -116,11 +115,12 @@ function getReportData(
             location: asset.location,
             status: asset.status,
             assignedTo: currentAssignment
-              ? getAssigneeName(
-                  currentAssignment.assignedToUserId,
-                  currentAssignment.assignedToDepartment,
-                )
-              : 'Unassigned',
+  ? getAssigneeName(
+      currentAssignment.assignedToUserId,
+      currentAssignment.assignedToUserName,
+      currentAssignment.assignedToDepartment,
+    )
+  : 'Unassigned',
           }
         }),
       }
@@ -156,10 +156,11 @@ function getReportData(
           return {
             assignmentId: assignment.id,
             assetName: asset?.name ?? 'Unknown asset',
-            assignedTo: getAssigneeName(
-              assignment.assignedToUserId,
-              assignment.assignedToDepartment,
-            ),
+           assignedTo: getAssigneeName(
+  assignment.assignedToUserId,
+  assignment.assignedToUserName,
+  assignment.assignedToDepartment,
+),
             assignedAt: formatDate(assignment.assignedAt),
             returnedAt: formatDate(assignment.returnedAt),
             assignmentStatus: assignment.returnedAt ? 'Returned' : 'Current',
@@ -185,7 +186,10 @@ function getReportData(
             assetName: asset?.name ?? 'Unknown asset',
             maintenanceType: record.maintenanceType,
             description: record.description,
-            performedBy: getAssigneeName(record.performedBy),
+           performedBy: getAssigneeName(
+  record.performedBy,
+  record.performedByName,
+),
             performedAt: formatDate(record.performedAt),
           }
         }),

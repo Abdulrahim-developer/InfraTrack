@@ -8,5 +8,5 @@ export const Route = createFileRoute('/_app/profile')({
 function ProfilePage() {
   const { authenticatedUser } = useRouteContext({ from: '/_app' })
 
-  return <ProfileSettings role={authenticatedUser.role} />
+  return <ProfileSettings user={authenticatedUser} />
 }

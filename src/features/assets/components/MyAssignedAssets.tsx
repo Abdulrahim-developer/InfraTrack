@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { Boxes, CalendarDays, Search, Wrench } from 'lucide-react'
 
 import {
-  currentMockTechnicianId,
   type AssetStatus,
   type AssetType,
 } from '#/features/dashboard/data/dashboard.mock'
@@ -32,7 +31,7 @@ function formatDate(value: string) {
 }
 
 export default function MyAssignedAssets() {
-  const { assets, assignments } = useAppData()
+  const { assets, assignments, currentUserId } = useAppData()
 
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('All Types')
@@ -40,13 +39,13 @@ export default function MyAssignedAssets() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
 
-  // Get only the assets currently assigned to the preview technician.
+  // Get only the assets currently assigned to the authenticated user.
   const technicianAssets = useMemo(
     () =>
       assignments
         .filter(
           (assignment) =>
-            assignment.assignedToUserId === currentMockTechnicianId &&
+            assignment.assignedToUserId === currentUserId &&
             assignment.returnedAt === null,
         )
         .flatMap((assignment) => {
@@ -61,7 +60,7 @@ export default function MyAssignedAssets() {
             },
           ]
         }),
-    [assignments, assets],
+    [assignments, assets, currentUserId],
   )
 
   const summary = useMemo(

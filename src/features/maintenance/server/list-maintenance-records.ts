@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, or } from 'drizzle-orm'
 
 import { db } from '#/db'
 import { assets } from '#/db/schema/assets'
@@ -55,6 +55,14 @@ export const listMaintenanceRecords = createServerFn({
       throw new Error('You are not authorized to view maintenance records')
     }
 
+    const technicianVisibility =
+      currentUser.role === 'TECHNICIAN'
+        ? or(
+            eq(maintenanceRecords.performedBy, currentUser.userId),
+            isNotNull(assetAssignments.assignmentId),
+          )
+        : undefined
+
     const records = await db
       .select({
         maintenanceId: maintenanceRecords.maintenanceId,
@@ -83,9 +91,7 @@ export const listMaintenanceRecords = createServerFn({
       .where(
         and(
           data.assetId ? eq(maintenanceRecords.assetId, data.assetId) : undefined,
-          currentUser.role === 'TECHNICIAN'
-            ? isNotNull(assetAssignments.assignmentId)
-            : undefined,
+          technicianVisibility,
         ),
       )
       .orderBy(desc(maintenanceRecords.performedAt))

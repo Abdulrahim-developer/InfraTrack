@@ -1,17 +1,15 @@
 import { useMemo } from 'react'
 import { Boxes, ClipboardList, UserRound, Wrench } from 'lucide-react'
 
-import { currentMockTechnicianId } from '../../data/dashboard.mock'
 import { useAppData } from '../../context/AppDataContext'
 
 export default function TechnicianStats() {
-  const { assets, assignments, maintenanceRecords } = useAppData()
+  const { currentUserId, assets, assignments, maintenanceRecords } = useAppData()
 
   const stats = useMemo(() => {
     const currentAssignments = assignments.filter(
       (assignment) =>
-        assignment.assignedToUserId === currentMockTechnicianId &&
-        assignment.returnedAt === null,
+        assignment.assignedToUserId === currentUserId && assignment.returnedAt === null,
     )
 
     const assignedAssets = currentAssignments.flatMap((assignment) => {
@@ -20,7 +18,7 @@ export default function TechnicianStats() {
     })
 
     const myMaintenanceCount = maintenanceRecords.filter(
-      (record) => record.performedBy === currentMockTechnicianId,
+      (record) => record.performedBy === currentUserId,
     ).length
 
     return [
@@ -53,7 +51,7 @@ export default function TechnicianStats() {
         iconStyle: 'bg-amber-50 text-amber-600',
       },
     ]
-  }, [assets, assignments, maintenanceRecords])
+  }, [currentUserId, assets, assignments, maintenanceRecords])
 
   return (
     <section

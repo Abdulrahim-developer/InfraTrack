@@ -1,4 +1,3 @@
-
 import { createHash } from 'node:crypto'
 import argon2 from 'argon2'
 import { and, eq, gt, isNull, sql } from 'drizzle-orm'
@@ -6,6 +5,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 
 import { db } from '#/db'
+import { userAuditLogs } from '#/db/schema/user-audit-logs'
 import { users } from '#/db/schema/users'
 import { userRoles } from '#/db/schema/user-roles'
 import { userInvitations } from '#/db/schema/user-invitations'
@@ -27,9 +27,7 @@ export const acceptUserInvitation = createServerFn({
 })
   .validator((data: unknown) => acceptanceSchema.parse(data))
   .handler(async ({ data }) => {
-    const tokenHash = createHash('sha256')
-      .update(data.token)
-      .digest('hex')
+    const tokenHash = createHash('sha256').update(data.token).digest('hex')
 
     const now = new Date()
 
@@ -92,6 +90,13 @@ export const acceptUserInvitation = createServerFn({
           .update(userInvitations)
           .set({ acceptedAt: now })
           .where(eq(userInvitations.invitationId, invitation.invitationId))
+
+        await tx.insert(userAuditLogs).values({
+          actorUserId: newUser.userId,
+          targetUserId: newUser.userId,
+          action: 'Invitation Accepted',
+          details: 'User accepted the invitation and activated their account.',
+        })
       })
 
       return {

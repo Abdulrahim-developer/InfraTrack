@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { CalendarDays, MapPin } from 'lucide-react'
 
-import { currentMockTechnicianId } from '../../data/dashboard.mock'
 import { useAppData } from '../../context/AppDataContext'
 
 const statusStyles: Record<string, string> = {
@@ -24,14 +23,14 @@ function getShortAssetId(id: string) {
 }
 
 export default function MyAssignedAssets() {
-  const { assets, assignments } = useAppData()
+  const { assets, assignments, currentUserId } = useAppData()
 
   const technicianAssignedAssets = useMemo(
     () =>
       assignments
         .filter(
           (assignment) =>
-            assignment.assignedToUserId === currentMockTechnicianId &&
+            assignment.assignedToUserId === currentUserId &&
             assignment.returnedAt === null,
         )
         .flatMap((assignment) => {
@@ -46,7 +45,7 @@ export default function MyAssignedAssets() {
             },
           ]
         }),
-    [assignments, assets],
+    [assignments, assets, currentUserId],
   )
 
   return (

@@ -25,6 +25,8 @@ async function findAuthenticatedUser() {
       userId: users.userId,
       fullName: users.fullName,
       email: users.email,
+      accountStatus: users.accountStatus,
+      createdAt: users.createdAt,
       role: roles.roleName,
     })
     .from(sessions)

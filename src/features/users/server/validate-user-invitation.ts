@@ -1,4 +1,3 @@
-
 import { createHash } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { createServerFn } from '@tanstack/react-start'
@@ -24,9 +23,7 @@ export const validateUserInvitation = createServerFn({
 })
   .validator((data: unknown) => tokenSchema.parse(data))
   .handler(async ({ data }) => {
-    const tokenHash = createHash('sha256')
-      .update(data.token)
-      .digest('hex')
+    const tokenHash = createHash('sha256').update(data.token).digest('hex')
 
     const [invitation] = await db
       .select({
@@ -37,10 +34,7 @@ export const validateUserInvitation = createServerFn({
         roleName: roles.roleName,
       })
       .from(userInvitations)
-      .innerJoin(
-        roles,
-        eq(userInvitations.roleId, roles.roleId),
-      )
+      .innerJoin(roles, eq(userInvitations.roleId, roles.roleId))
       .where(eq(userInvitations.tokenHash, tokenHash))
       .limit(1)
 

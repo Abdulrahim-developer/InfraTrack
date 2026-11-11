@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { CalendarDays, ClipboardList } from 'lucide-react'
 
-import { currentMockTechnicianId } from '../../data/dashboard.mock'
 import { useAppData } from '../../context/AppDataContext'
 
 function formatDate(value: string) {
@@ -13,14 +12,14 @@ function formatDate(value: string) {
 }
 
 export default function RecentMaintenanceRecords() {
-  const { assets, assignments, maintenanceRecords } = useAppData()
+  const { currentUserId, assets, assignments, maintenanceRecords } = useAppData()
 
   const myMaintenanceRecords = useMemo(() => {
     const myAssignedAssetIds = new Set(
       assignments
         .filter(
           (assignment) =>
-            assignment.assignedToUserId === currentMockTechnicianId &&
+            assignment.assignedToUserId === currentUserId &&
             assignment.returnedAt === null,
         )
         .map((assignment) => assignment.assetId),
@@ -29,8 +28,7 @@ export default function RecentMaintenanceRecords() {
     return maintenanceRecords
       .filter(
         (record) =>
-          record.performedBy === currentMockTechnicianId ||
-          myAssignedAssetIds.has(record.assetId),
+          record.performedBy === currentUserId || myAssignedAssetIds.has(record.assetId),
       )
       .flatMap((record) => {
         const asset = assets.find((item) => item.id === record.assetId)
@@ -45,7 +43,10 @@ export default function RecentMaintenanceRecords() {
           },
         ]
       })
-  }, [assignments, maintenanceRecords, assets])
+      .sort(
+        (a, b) => new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime(),
+      )
+  }, [currentUserId, assignments, maintenanceRecords, assets])
 
   return (
     <section
@@ -86,7 +87,6 @@ export default function RecentMaintenanceRecords() {
         </div>
       ) : (
         <>
-          {/* Mobile layout */}
           <div className="mt-5 space-y-3 md:hidden">
             {myMaintenanceRecords.map((record) => (
               <article key={record.id} className="rounded-lg border border-slate-200 p-4">
@@ -115,7 +115,6 @@ export default function RecentMaintenanceRecords() {
             ))}
           </div>
 
-          {/* Tablet and desktop table */}
           <div className="mt-5 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[650px] text-left text-sm">
               <thead>

@@ -1,4 +1,3 @@
-
 import { useEffect, useState, type FormEvent } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { z } from 'zod'
@@ -56,11 +55,7 @@ function AcceptInvitationPage() {
         setValid(true)
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Unable to validate invitation.',
-          )
+          setError(err instanceof Error ? err.message : 'Unable to validate invitation.')
         }
       } finally {
         if (!cancelled) {
@@ -140,8 +135,7 @@ function AcceptInvitationPage() {
         ) : success ? (
           <div className="space-y-5">
             <div className="rounded-lg bg-green-50 p-4 text-sm text-green-700 dark:bg-green-950/40 dark:text-green-300">
-              Your account is ready. You can now sign in using your email and
-              password.
+              Your account is ready. You can now sign in using your email and password.
             </div>
 
             <button
@@ -172,19 +166,13 @@ function AcceptInvitationPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="rounded-lg bg-blue-50 p-4 text-sm dark:bg-blue-950/30">
-              <p className="text-slate-500 dark:text-slate-400">
-                Invitation email
-              </p>
+              <p className="text-slate-500 dark:text-slate-400">Invitation email</p>
               <p className="mt-1 break-all font-medium text-slate-900 dark:text-white">
                 {email}
               </p>
 
-              <p className="mt-3 text-slate-500 dark:text-slate-400">
-                Assigned role
-              </p>
-              <p className="mt-1 font-medium text-slate-900 dark:text-white">
-                {role}
-              </p>
+              <p className="mt-3 text-slate-500 dark:text-slate-400">Assigned role</p>
+              <p className="mt-1 font-medium text-slate-900 dark:text-white">{role}</p>
             </div>
 
             <div>

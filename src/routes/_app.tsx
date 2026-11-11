@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+
 import AppLayout from '#/layouts/app/AppLayout'
 import { getCurrentUser } from '#/features/auth/server/session'
 import type { AppRole } from '#/features/navigation/navigation.config'
@@ -34,10 +35,11 @@ export const Route = createFileRoute('/_app')({
         fullName: user.fullName,
         email: user.email,
         role: mapDatabaseRole(user.role),
+        accountStatus: user.accountStatus,
+        createdAt: user.createdAt,
       },
     }
   },
-
   component: AuthenticatedLayout,
 })
 

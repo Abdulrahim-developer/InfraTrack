@@ -203,6 +203,29 @@ export default function MaintenanceManagement({
     }
   }, [role, canSelectPerformer])
 
+  useEffect(() => {
+    const refreshRecords = async () => {
+      if (document.visibilityState === 'visible') {
+        try {
+          await loadRecords()
+        } catch (error) {
+          console.error('Unable to refresh maintenance records:', error)
+        }
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshRecords()
+    }, 30_000)
+
+    document.addEventListener('visibilitychange', refreshRecords)
+
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', refreshRecords)
+    }
+  }, [])
+
   const assetTypeOptions = useMemo(
     () => [...new Set(assets.map((asset) => asset.assetType))].sort(),
     [assets],
